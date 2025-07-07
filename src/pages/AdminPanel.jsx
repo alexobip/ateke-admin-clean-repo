@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import UsersPanel from "./UsersPanel";
-
+import ProjectsPanel from "./ProjectsPanel"; // ✅ Add this line
 
 const navItems = [
   { key: "who", label: "Who's Working", icon: <LayoutDashboardIcon className="w-4 h-4 mr-2" /> },
@@ -47,10 +47,11 @@ export default function AdminPanel() {
           ))}
         </nav>
       </aside>
-        <main className="flex-1 p-6 overflow-y-auto">
-          {activeTab === "users" && <UsersPanel />}
-          {/* Add other panels here */}
-        </main>
+      <main className="flex-1 p-6 overflow-y-auto">
+        {activeTab === "users" && <UsersPanel />}
+        {activeTab === "projects" && <ProjectsPanel />} {/* ✅ Add this line */}
+        {/* Add other panels here */}
+      </main>
     </div>
   );
 }
