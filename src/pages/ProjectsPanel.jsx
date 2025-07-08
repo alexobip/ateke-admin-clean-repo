@@ -17,125 +17,9 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch"; // Υπόθεση ότι υπάρχει
-import { Edit2 } from "lucide-react"; // εικονίδιο μολυβιού
+import { PencilIcon } from "lucide-react";
 import Modal from "@/components/ui/modal";
-
-function ProjectFormModal({ isOpen, onClose, project, onSave }) {
-  const [title, setTitle] = useState(project?.title ?? "");
-  const [code, setCode] = useState(project?.code ?? "");
-  const [isActive, setIsActive] = useState(
-    project ? project.is_active : true
-  );
-
-  // Καθάρισμα όταν ανοίγει άλλο project
-  useEffect(() => {
-    setTitle(project?.title ?? "");
-    setCode(project?.code ?? "");
-    setIsActive(project ? project.is_active : true);
-  }, [project]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const payload = {
-      title,
-      code,
-      is_active: isActive,
-    };
-
-    try {
-      if (project?.id) {
-        // Edit
-        const res = await fetch(
-          `https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${project.id}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-        if (!res.ok) throw new Error("Failed to update project");
-      } else {
-        // Add new
-        const res = await fetch(
-          `https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-        if (!res.ok) throw new Error("Failed to create project");
-      }
-
-      onSave();
-      onClose();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={project ? "Edit Project" : "Add Project"}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {project?.id && (
-          <div>
-            <label className="block font-semibold mb-1">Project ID (read-only)</label>
-            <input
-              type="text"
-              value={project.id}
-              readOnly
-              className="w-full p-2 border rounded bg-gray-100 cursor-not-allowed"
-            />
-          </div>
-        )}
-        <div>
-          <label className="block font-semibold mb-1" htmlFor="title">
-            Title
-          </label>
-          <input
-            id="title"
-            type="text"
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1" htmlFor="code">
-            Code
-          </label>
-          <input
-            id="code"
-            type="text"
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        <div className="flex items-center space-x-2">
-          <label className="font-semibold">Active</label>
-          <Switch checked={isActive} onCheckedChange={setIsActive} />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="black" type="submit">
-            {project ? "Save" : "Add"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
+import { Switch } from "@/components/ui/switch";
 
 export default function ProjectsPanel() {
   const [projects, setProjects] = useState([]);
@@ -148,25 +32,23 @@ export default function ProjectsPanel() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  const [sortColumn, setSortColumn] = useState("created_at");
-  const [sortDirection, setSortDirection] = useState("desc");
+  const [sortBy, setSortBy] = useState("id");
+  const [sortOrder, setSortOrder] = useState("asc");
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const pageSize = 5;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
 
   const fetchProjects = () => {
-    fetch(
-      "https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects"
-    )
+    fetch("https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects")
       .then((res) => res.json())
       .then((data) => {
         setProjects(data);
         setCurrentPage(1);
       })
-      .catch((err) => console.error("Error loading projects:", err));
+      .catch((err) => alert("Failed to load projects: " + err.message));
   };
 
   useEffect(() => {
@@ -176,58 +58,27 @@ export default function ProjectsPanel() {
   useEffect(() => {
     let data = [...projects];
 
-    if (idFilter.trim()) {
-      data = data.filter((p) => p.id.toString().includes(idFilter.trim()));
-    }
-    if (titleFilter.trim()) {
-      data = data.filter((p) =>
-        p.title.toLowerCase().includes(titleFilter.toLowerCase())
-      );
-    }
-    if (codeFilter.trim()) {
-      data = data.filter((p) =>
-        p.code.toLowerCase().includes(codeFilter.toLowerCase())
-      );
-    }
-    if (statusFilter !== "all") {
-      data = data.filter((p) => p.is_active === (statusFilter === "active"));
-    }
-    if (fromDate) {
-      data = data.filter((p) => new Date(p.created_at) >= new Date(fromDate));
-    }
-    if (toDate) {
-      data = data.filter((p) => new Date(p.created_at) <= new Date(toDate));
-    }
+    if (idFilter.trim()) data = data.filter((p) => p.id.toString().includes(idFilter.trim()));
+    if (titleFilter.trim()) data = data.filter((p) => p.title.toLowerCase().includes(titleFilter.toLowerCase()));
+    if (codeFilter.trim()) data = data.filter((p) => p.code.toLowerCase().includes(codeFilter.toLowerCase()));
+    if (statusFilter !== "all") data = data.filter((p) => p.is_active === (statusFilter === "active"));
+    if (fromDate) data = data.filter((p) => new Date(p.created_at) >= new Date(fromDate));
+    if (toDate) data = data.filter((p) => new Date(p.created_at) <= new Date(toDate));
 
     data.sort((a, b) => {
-      const aVal = a[sortColumn];
-      const bVal = b[sortColumn];
-      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      let valA = a[sortBy];
+      let valB = b[sortBy];
+      if (sortBy === "created_at") {
+        valA = new Date(valA);
+        valB = new Date(valB);
+      }
+      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
       return 0;
     });
 
     setFiltered(data);
-  }, [
-    idFilter,
-    titleFilter,
-    codeFilter,
-    statusFilter,
-    fromDate,
-    toDate,
-    sortColumn,
-    sortDirection,
-    projects,
-  ]);
-
-  const toggleSort = (col) => {
-    if (sortColumn === col) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(col);
-      setSortDirection("asc");
-    }
-  };
+  }, [idFilter, titleFilter, codeFilter, statusFilter, fromDate, toDate, projects, sortBy, sortOrder]);
 
   const clearFilters = () => {
     setIdFilter("");
@@ -238,13 +89,23 @@ export default function ProjectsPanel() {
     setToDate("");
   };
 
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
+  };
+
   const handleToggleActive = async (id) => {
-    const res = await fetch(
-      `https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${id}/toggle`,
-      { method: "PATCH" }
-    );
-    if (res.ok) {
+    try {
+      const res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${id}/toggle`, { method: "PATCH" });
+      if (!res.ok) throw new Error("Toggle failed");
       fetchProjects();
+      alert("Project status toggled successfully.");
+    } catch (err) {
+      alert("Error toggling project: " + err.message);
     }
   };
 
@@ -260,178 +121,253 @@ export default function ProjectsPanel() {
 
   const handleSave = () => {
     fetchProjects();
+    setModalOpen(false);
   };
 
-  const paginated = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function ProjectFormModal({ isOpen, onClose, project, onSave }) {
+    const [title, setTitle] = useState(project?.title ?? "");
+    const [code, setCode] = useState(project?.code ?? "");
+    const [isActive, setIsActive] = useState(project?.is_active ?? true);
+    const [id, setId] = useState(project?.id ?? "");
+
+    useEffect(() => {
+      setTitle(project?.title ?? "");
+      setCode(project?.code ?? "");
+      setIsActive(project?.is_active ?? true);
+      setId(project?.id ?? "");
+    }, [project]);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      if (!title.trim() || !code.trim()) {
+        alert("Please fill in all required fields.");
+        return;
+      }
+      if (!project && (!/^\d{5,6}$/.test(id))) {
+        alert("Project ID must be a 5 or 6 digit integer.");
+        return;
+      }
+
+      const payload = { title, code, is_active: isActive };
+      const fullPayload = project ? payload : { ...payload, id: Number(id) };
+
+      console.log("Sending payload:", fullPayload);
+
+      try {
+        let res;
+        if (project) {
+          res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(fullPayload),
+          });
+        }
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || "Error saving project");
+        }
+        alert("Project saved successfully.");
+        onSave();
+        onClose();
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    };
+
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title={project ? "Edit Project" : "Add Project"}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {project ? (
+            <div>
+              <label className="block font-semibold mb-1">Project ID (read-only)</label>
+              <input
+                type="text"
+                value={id}
+                readOnly
+                className="w-full p-2 border rounded bg-gray-100 cursor-not-allowed"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block font-semibold mb-1" htmlFor="id">Project ID (5-6 digit integer)</label>
+              <input
+                id="id"
+                type="text"
+                value={id}
+                onChange={(e) => setId(e.target.value)}
+                required
+                className="w-full p-2 border rounded"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block font-semibold mb-1" htmlFor="title">Title</label>
+            <input
+              id="title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full p-2 border rounded"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold mb-1" htmlFor="code">Code</label>
+            <input
+              id="code"
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              className="w-full p-2 border rounded"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold mb-1" htmlFor="is_active">Status</label>
+            <select
+              id="is_active"
+              value={isActive ? "true" : "false"}
+              onChange={(e) => setIsActive(e.target.value === "true")}
+              className="w-full p-2 border rounded"
+            >
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" type="button" onClick={onClose}>Cancel</Button>
+            <Button variant="black" type="submit">{project ? "Save" : "Add"}</Button>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Projects</h1>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={clearFilters}>
-            Καθαρισμός Φίλτρων
-          </Button>
-          <Button variant="black" onClick={openAddModal}>
-            + Add Project
-          </Button>
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={clearFilters}>Καθαρισμός Φίλτρων</Button>
+          <Button variant="black" onClick={openAddModal}>+ Add Project</Button>
         </div>
       </div>
+
       <Card>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableCell />
-                <TableCell
-                  className="cursor-pointer"
-                  onClick={() => toggleSort("id")}
-                >
-                  ID {sortColumn === "id" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer"
-                  onClick={() => toggleSort("title")}
-                >
-                  Title {sortColumn === "title" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer"
-                  onClick={() => toggleSort("code")}
-                >
-                  Code {sortColumn === "code" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer"
-                  onClick={() => toggleSort("is_active")}
-                >
-                  Status {sortColumn === "is_active" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                </TableCell>
-                <TableCell
-                  className="cursor-pointer"
-                  onClick={() => toggleSort("created_at")}
-                >
-                  Created At {sortColumn === "created_at" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                </TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell></TableCell> {/* Edit icon column */}
+                {["id", "title", "code", "is_active", "created_at"].map((col) => (
+                  <TableCell
+                    key={col}
+                    onClick={() => handleSort(col)}
+                    className="cursor-pointer select-none font-semibold"
+                  >
+                    {col === "id" && "ID"}
+                    {col === "title" && "Title"}
+                    {col === "code" && "Code"}
+                    {col === "is_active" && "Status"}
+                    {col === "created_at" && "Created At"}
+                    {sortBy === col && (sortOrder === "asc" ? " ▲" : " ▼")}
+                  </TableCell>
+                ))}
+                <TableCell>Status</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell />
+                <TableCell></TableCell>
                 <TableCell>
-                  <Input
-                    placeholder="Filter"
-                    value={idFilter}
-                    onChange={(e) => setIdFilter(e.target.value)}
-                  />
+                  <Input placeholder="Φίλτρο" value={idFilter} onChange={(e) => setIdFilter(e.target.value)} />
                 </TableCell>
                 <TableCell>
-                  <Input
-                    placeholder="Filter"
-                    value={titleFilter}
-                    onChange={(e) => setTitleFilter(e.target.value)}
-                  />
+                  <Input placeholder="Φίλτρο" value={titleFilter} onChange={(e) => setTitleFilter(e.target.value)} />
                 </TableCell>
                 <TableCell>
-                  <Input
-                    placeholder="Filter"
-                    value={codeFilter}
-                    onChange={(e) => setCodeFilter(e.target.value)}
-                  />
+                  <Input placeholder="Φίλτρο" value={codeFilter} onChange={(e) => setCodeFilter(e.target.value)} />
                 </TableCell>
                 <TableCell>
-                  <Select
-                    value={statusFilter}
-                    onValueChange={setStatusFilter}
-                  >
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Status" />
+                      <SelectValue placeholder="Κατάσταση" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="all">Όλες</SelectItem>
+                      <SelectItem value="active">Ενεργές</SelectItem>
+                      <SelectItem value="inactive">Ανενεργές</SelectItem>
                     </SelectContent>
                   </Select>
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={fromDate}
-                      placeholder="From"
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-1/2"
-                    />
-                    <Input
-                      type="date"
-                      value={toDate}
-                      placeholder="To"
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-1/2"
-                    />
+                    <Input type="date" placeholder="Από" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-1/2" />
+                    <Input type="date" placeholder="Έως" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-1/2" />
                   </div>
                 </TableCell>
-                <TableCell />
+                <TableCell></TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginated.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditModal(project)}
-                      title="Edit Project"
-                      className="text-black"
-                    >
-                      <Edit2 className="w-4 h-4" />
+                    <Button variant="ghost" size="icon" onClick={() => openEditModal(project)} title="Edit Project">
+                      <PencilIcon className="w-4 h-4" />
                     </Button>
                   </TableCell>
                   <TableCell>{project.id}</TableCell>
                   <TableCell>{project.title}</TableCell>
                   <TableCell>{project.code}</TableCell>
                   <TableCell>
-                    <Switch
-                      checked={project.is_active}
-                      onCheckedChange={() => handleToggleActive(project.id)}
-                      title="Toggle Active"
-                    />
+                    {project.is_active ? (
+                      <span className="text-green-600 font-semibold">Ενεργό</span>
+                    ) : (
+                      <span className="text-red-600 font-semibold">Ανενεργό</span>
+                    )}
                   </TableCell>
-                  <TableCell>
-                    {format(new Date(project.created_at), "yyyy-MM-dd HH:mm")}
-                  </TableCell>
-                  <TableCell />
+                  <TableCell>{format(new Date(project.created_at), "yyyy-MM-dd HH:mm")}</TableCell>
+                  <TableCell></TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <div className="flex justify-end items-center gap-4 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className="text-black"
-            >
-              Previous
-            </Button>
-            <span>
-              Page {currentPage} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="text-black"
-            >
-              Next
-            </Button>
+
+          {/* Pagination */}
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-sm text-muted-foreground">
+              Σελίδα {currentPage} από {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              >
+                Προηγούμενη
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              >
+                Επόμενη
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
