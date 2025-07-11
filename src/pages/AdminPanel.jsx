@@ -1,4 +1,3 @@
-// AdminPanel.jsx
 import React, { useState } from "react";
 import {
   UsersIcon,
@@ -12,10 +11,11 @@ import {
 import UsersPanel from "./UsersPanel";
 import ProjectsPanel from "./ProjectsPanel";
 import WhoIsWorking from "./WhoIsWorking";
+import TimeEntriesPanel from "./TimeEntriesPanel"; // ✅ Add this line
 
 const navItems = [
   { key: "who", label: "Who's Working", icon: <LayoutDashboardIcon className="w-4 h-4 mr-2" /> },
-  { key: "shifts", label: "Time Entries", icon: <ClockIcon className="w-4 h-4 mr-2" /> },
+  { key: "shifts", label: "Time Entries", icon: <ClockIcon className="w-4 h-4 mr-2" /> }, // ✅ Enable this tab
   { key: "users", label: "Users", icon: <UsersIcon className="w-4 h-4 mr-2" /> },
   { key: "projects", label: "Projects", icon: <FolderIcon className="w-4 h-4 mr-2" /> },
   { key: "timeoff", label: "Time Off", icon: <CalendarCheckIcon className="w-4 h-4 mr-2" /> },
@@ -27,6 +27,7 @@ export default function AdminPanel() {
 
   return (
     <div className="flex h-screen bg-muted">
+      {/* Sidebar */}
       <aside className={`bg-gray-800 text-white flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
         <div className="flex items-center justify-between p-4">
           {!collapsed && <h1 className="text-xl font-bold">Time Admin</h1>}
@@ -48,11 +49,13 @@ export default function AdminPanel() {
         </nav>
       </aside>
 
+      {/* Main content */}
       <main className="flex-1 p-6 overflow-y-auto">
         {activeTab === "who" && <WhoIsWorking />}
+        {activeTab === "shifts" && <TimeEntriesPanel />} {/* ✅ Show Time Entries Panel */}
         {activeTab === "users" && <UsersPanel />}
         {activeTab === "projects" && <ProjectsPanel />}
-        {/* Add other panels here */}
+        {/* You can add other panels like timeoff here if needed */}
       </main>
     </div>
   );
