@@ -7,6 +7,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableHead,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
@@ -154,8 +155,6 @@ export default function ProjectsPanel() {
       const payload = { title, code, is_active: isActive };
       const fullPayload = project ? payload : { ...payload, id: Number(id) };
 
-      console.log("Sending payload:", fullPayload);
-
       try {
         let res;
         if (project) {
@@ -271,9 +270,9 @@ export default function ProjectsPanel() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableCell></TableCell> {/* Edit icon column */}
+                <TableHead></TableHead>
                 {["id", "title", "code", "is_active", "created_at"].map((col) => (
-                  <TableCell
+                  <TableHead
                     key={col}
                     onClick={() => handleSort(col)}
                     className="cursor-pointer select-none font-semibold"
@@ -284,22 +283,22 @@ export default function ProjectsPanel() {
                     {col === "is_active" && "Status"}
                     {col === "created_at" && "Created At"}
                     {sortBy === col && (sortOrder === "asc" ? " ▲" : " ▼")}
-                  </TableCell>
+                  </TableHead>
                 ))}
-                <TableCell>Status</TableCell>
+                <TableHead>Status</TableHead>
               </TableRow>
               <TableRow>
-                <TableCell></TableCell>
-                <TableCell>
+                <TableHead></TableHead>
+                <TableHead>
                   <Input placeholder="Φίλτρο" value={idFilter} onChange={(e) => setIdFilter(e.target.value)} />
-                </TableCell>
-                <TableCell>
+                </TableHead>
+                <TableHead>
                   <Input placeholder="Φίλτρο" value={titleFilter} onChange={(e) => setTitleFilter(e.target.value)} />
-                </TableCell>
-                <TableCell>
+                </TableHead>
+                <TableHead>
                   <Input placeholder="Φίλτρο" value={codeFilter} onChange={(e) => setCodeFilter(e.target.value)} />
-                </TableCell>
-                <TableCell>
+                </TableHead>
+                <TableHead>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Κατάσταση" />
@@ -310,16 +309,17 @@ export default function ProjectsPanel() {
                       <SelectItem value="inactive">Ανενεργές</SelectItem>
                     </SelectContent>
                   </Select>
-                </TableCell>
-                <TableCell>
+                </TableHead>
+                <TableHead>
                   <div className="flex gap-2">
-                    <Input type="date" placeholder="Από" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-1/2" />
-                    <Input type="date" placeholder="Έως" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-1/2" />
+                    <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-1/2" />
+                    <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-1/2" />
                   </div>
-                </TableCell>
-                <TableCell></TableCell>
+                </TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {paginated.map((project) => (
                 <TableRow key={project.id}>
@@ -345,7 +345,6 @@ export default function ProjectsPanel() {
             </TableBody>
           </Table>
 
-          {/* Pagination */}
           <div className="flex justify-between items-center mt-4">
             <div className="text-sm text-muted-foreground">
               Σελίδα {currentPage} από {totalPages}
