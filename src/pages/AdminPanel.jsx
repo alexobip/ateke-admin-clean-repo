@@ -7,17 +7,20 @@ import {
   CalendarCheckIcon,
   MenuIcon,
   ChevronsLeftIcon,
+  DollarSignIcon,
 } from "lucide-react";
 import UsersPanel from "./UsersPanel";
 import ProjectsPanel from "./ProjectsPanel";
 import WhoIsWorking from "./WhoIsWorking";
-import TimeEntriesPanel from "./TimeEntriesPanel"; // ✅ Add this line
+import TimeEntriesPanel from "./TimeEntriesPanel";
+import UserSalarySettingsPanel from "./UserSalarySettingsPanel";
 
 const navItems = [
   { key: "who", label: "Who's Working", icon: <LayoutDashboardIcon className="w-4 h-4 mr-2" /> },
-  { key: "shifts", label: "Time Entries", icon: <ClockIcon className="w-4 h-4 mr-2" /> }, // ✅ Enable this tab
+  { key: "shifts", label: "Time Entries", icon: <ClockIcon className="w-4 h-4 mr-2" /> },
   { key: "users", label: "Users", icon: <UsersIcon className="w-4 h-4 mr-2" /> },
   { key: "projects", label: "Projects", icon: <FolderIcon className="w-4 h-4 mr-2" /> },
+  { key: "salary", label: "Salary Settings", icon: <DollarSignIcon className="w-4 h-4 mr-2" /> },
   { key: "timeoff", label: "Time Off", icon: <CalendarCheckIcon className="w-4 h-4 mr-2" /> },
 ];
 
@@ -52,9 +55,10 @@ export default function AdminPanel() {
       {/* Main content */}
       <main className="flex-1 p-6 overflow-y-auto">
         {activeTab === "who" && <WhoIsWorking />}
-        {activeTab === "shifts" && <TimeEntriesPanel />} {/* ✅ Show Time Entries Panel */}
+        {activeTab === "shifts" && <TimeEntriesPanel />}
         {activeTab === "users" && <UsersPanel />}
         {activeTab === "projects" && <ProjectsPanel />}
+        {activeTab === "salary" && <UserSalarySettingsPanel />}
         {/* You can add other panels like timeoff here if needed */}
       </main>
     </div>
