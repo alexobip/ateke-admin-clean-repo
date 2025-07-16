@@ -64,9 +64,14 @@ export default function UsersPanel() {
   };
 
   const handleAddUser = async (userData) => {
+  if (editUser) {
+    await axios.put(`${API_BASE_URL}/webusers/${userData.id}`, userData);
+  } else {
     await axios.post(`${API_BASE_URL}/webusers`, userData);
-    fetchUsers();
-  };
+  }
+  fetchUsers();
+};
+
 
   const handleEditUser = (user) => {
     setEditUser(user);
@@ -258,15 +263,15 @@ export default function UsersPanel() {
         </Table>
       </CardContent>
 
-      <UserFormModal
-        open={showFormModal}
-        onClose={() => {
-          setShowFormModal(false);
-          setEditUser(null);
-        }}
-        onSubmit={handleAddUser}
-        user={editUser}
-      />
+     <UserFormModal
+  open={showFormModal}
+  onClose={() => {
+    setShowFormModal(false);
+    setEditUser(null);
+  }}
+  onSubmit={handleAddUser}
+  userToEdit={editUser}
+/>
     </Card>
   );
 }

@@ -24,6 +24,8 @@
     const [baseOvertime, setBaseOvertime] = useState("");
     const [salaryRecords, setSalaryRecords] = useState([]);
     const [userSalaryHistory, setUserSalaryHistory] = useState([]);
+    const [userSearch, setUserSearch] = useState("");
+    
 
 
     const [salaryData, setSalaryData] = useState({
@@ -37,7 +39,7 @@
       is_driver: false,
       user_type_id: "",
       has_monthly_salary: false,
-      monthly_salary: "",
+      monthly_salary: 0,
       monthly_periods: "12",
       days_per_week: "5", // Default to 5 days per week
     });
@@ -137,11 +139,13 @@ useEffect(() => {
 
           setSalaryData({
   ...preload,
+  effective_from: "", // ✅ leave the date blank
   has_monthly_salary: !!last.monthly_salary,
   monthly_salary: last.monthly_salary || "",
   monthly_periods: last.monthly_periods || "12",
-  user_type_id: last.user_type_id || "", // 🔥 this line ensures it stays visible
+  user_type_id: last.user_type_id || "",
 });
+
 
 
           setUseMonthlySalary(!!last.monthly_salary);
@@ -163,6 +167,11 @@ useEffect(() => {
     const handleSubmit = async (e) => {
       e.preventDefault();
       if (!selectedUserId) return alert("Please select a user");
+      if (!salaryData.effective_from) {
+  alert("Please select an effective start date.");
+  return;
+}
+
       const type = Number(salaryData.user_type_id);
 
 // 1. Check if monthly salary is required
@@ -192,21 +201,56 @@ days.forEach(day => {
   }
 });
 
-const data = { ...filledData, user_id: selectedUserId };
+const data = { ...filledData, user_id: selectedUserId, effective_from: salaryData.effective_from, };
 
       // Check for duplicate date for this user
-      const duplicate = userSalaryHistory.some(
-      rec => rec.effective_from?.slice(0, 10) === salaryData.effective_from
-      );
+      const normalizeDate = (dateStr) => {
+  return new Date(dateStr).toISOString().split("T")[0];
+};
 
-      if (duplicate) {
-      alert("A salary setting already exists for this date. You cannot submit another entry with the same date.");
-      return;
+const selectedDate = normalizeDate(salaryData.effective_from);
+
+const duplicate = userSalaryHistory.some((rec) => {
+  const recDate = normalizeDate(rec.effective_from);
+  return recDate === selectedDate;
+});
+
+if (duplicate) {
+  alert("Υπάρχει ήδη καταχωρημένη ρύθμιση μισθού για αυτήν την ημερομηνία. Παρακαλώ επέλεξε διαφορετική.");
+  return;
 }
+
       try {
         await axios.post("/user-salary-settings", data);
         alert("Salary setting saved.");
-        window.location.reload();
+
+        // Re-fetch salary history for the selected user
+        const res = await axios.get(`/user-salary-settings?user_id=${selectedUserId}`);
+        setUserSalaryHistory(res.data || []);
+
+        // Clear form fields
+        setSelectedUserId("");
+        setUserSearch("");
+        setBaseSalary("");
+        setBaseOvertime("");
+        setUseCustomDays(false);
+        setUseMonthlySalary(false);
+        setSalaryData({
+          effective_from: "",
+          salary_mon: "", salary_tue: "", salary_wed: "", salary_thu: "",
+          salary_fri: "", salary_sat: "", salary_sun: "",
+          overtime_mon: "", overtime_tue: "", overtime_wed: "", overtime_thu: "",
+          overtime_fri: "", overtime_sat: "", overtime_sun: "",
+          norm_daily_hours: "8.0",
+          away_work: "",
+          is_driver: false,
+          user_type_id: "",
+          has_monthly_salary: false,
+          monthly_salary: 0,
+          monthly_periods: "12",
+          days_per_week: "5",
+        });
+
       } catch (err) {
         console.error("Error saving:", err);
         alert("Failed to save.");
@@ -231,14 +275,32 @@ const data = { ...filledData, user_id: selectedUserId };
 
             <div className="mb-4">
   <label className="text-xs font-medium">User</label>
+  <div className="relative">
+  <Input
+    placeholder="Search user..."
+    value={userSearch}
+    onChange={(e) => setUserSearch(e.target.value)}
+    className="mb-2"
+  />
   <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-    <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+    <SelectTrigger className="max-w-[300px]">
+      <SelectValue placeholder="Select user" />
+    </SelectTrigger>
     <SelectContent>
-      {users.map(user => (
-        <SelectItem key={user.id} value={user.id}>{user.name} ({user.id})</SelectItem>
-      ))}
+      {users
+        .filter((user) =>
+          user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+          user.id.toLowerCase().includes(userSearch.toLowerCase())
+        )
+        .map((user) => (
+          <SelectItem key={user.id} value={user.id}>
+            {user.name} ({user.id})
+          </SelectItem>
+        ))}
     </SelectContent>
   </Select>
+</div>
+
 </div>
 
 
@@ -254,11 +316,21 @@ const data = { ...filledData, user_id: selectedUserId };
             <div className="grid grid-cols-2 gap-4 mb-2">
               <div>
                 <label className="text-sm">Base Daily Salary (€)</label>
-                <Input type="number" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
+                <Input
+  type="number"
+  value={baseSalary}
+  onChange={(e) => setBaseSalary(e.target.value)}
+  className="max-w-[200px]"
+/>
               </div>
               <div>
                 <label className="text-sm">Base Overtime (€)</label>
-                <Input type="number" value={baseOvertime} onChange={(e) => setBaseOvertime(e.target.value)} />
+                <Input
+  type="number"
+  value={baseOvertime}
+  onChange={(e) => setBaseOvertime(e.target.value)}
+  className="max-w-[200px]"
+/>
               </div>
             </div>
 
@@ -303,7 +375,11 @@ const data = { ...filledData, user_id: selectedUserId };
               </div>
               <div>
                 <label className="text-xs font-medium">Away Work (€)</label>
-                <Input value={salaryData.away_work} onChange={(e) => setSalaryData({ ...salaryData, away_work: e.target.value })} />
+                <Input
+  value={salaryData.away_work}
+  onChange={(e) => setSalaryData({ ...salaryData, away_work: e.target.value })}
+  className="max-w-[200px]"
+/>
               </div>
               <div className="flex items-center space-x-2 mt-2">
                 <Checkbox checked={salaryData.is_driver} onCheckedChange={(val) => setSalaryData({ ...salaryData, is_driver: val })} />
@@ -350,18 +426,30 @@ const data = { ...filledData, user_id: selectedUserId };
               </div>
             )}
 
-            <div className="mt-4">
-              <label className="text-xs font-medium">Norm Daily Hours</label>
-              <Input type="number" value={salaryData.norm_daily_hours}
-                onChange={(e) => setSalaryData({ ...salaryData, norm_daily_hours: e.target.value })} />
-            </div>
+            <div className="mt-4 flex gap-6 items-end">
+  <div>
+    <label className="text-xs font-medium">Norm Daily Hours</label>
+    <Input
+      type="number"
+      className="max-w-[150px]"
+      value={salaryData.norm_daily_hours}
+      onChange={(e) =>
+        setSalaryData({ ...salaryData, norm_daily_hours: e.target.value })
+      }
+    />
+  </div>
 
-<div className="mt-4">
-  <label className="text-xs font-medium">Days per Week</label>
-  <Input type="number" min={1} max={7}
-    value={salaryData.days_per_week}
-    onChange={(e) => setSalaryData({ ...salaryData, days_per_week: e.target.value })}
-  />
+  <div>
+    <label className="text-xs font-medium">Days per Week</label>
+    <Input
+      type="number"
+      className="max-w-[150px]"
+      value={salaryData.days_per_week}
+      onChange={(e) =>
+        setSalaryData({ ...salaryData, days_per_week: e.target.value })
+      }
+    />
+  </div>
 </div>
 
 
@@ -399,7 +487,11 @@ const data = { ...filledData, user_id: selectedUserId };
     <tr key={index}>
       <td className="p-2 border">{record.id}</td>
       <td className="p-2 border">{record.user_id}</td>
-      <td className="p-2 border">{record.effective_from?.slice(0, 10)}</td>
+      <td className="p-2 border">
+  {record.effective_from
+    ? new Date(record.effective_from).toLocaleDateString("el-GR")
+    : ""}
+</td>
       {days.map(d => (
         <td key={`sval_${d}_${index}`} className="p-2 border">{record[`salary_${d}`]}</td>
       ))}
@@ -413,7 +505,7 @@ const data = { ...filledData, user_id: selectedUserId };
       <td className="p-2 border">{record.is_driver ? "Yes" : "No"}</td>
       <td className="p-2 border">{getUserTypeTitle(record.user_type_id)}</td>
       <td className="p-2 border">{record.has_monthly_salary ? "Yes" : "No"}</td>
-      <td className="p-2 border">{record.created_at?.slice(0, 19).replace("T", " ")}</td>
+      <td className="p-2 border">{record.created_at ? new Date(record.created_at).toLocaleString("el-GR") : ""}</td>
       <td className="p-2 border">{record.days_per_week}</td>
     </tr>
   ))}

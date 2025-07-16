@@ -31,10 +31,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
 
 dayjs.extend(isoWeek);
 dayjs.extend(duration);
 dayjs.extend(isBetween);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -52,6 +57,11 @@ export default function TimeEntriesPanel() {
   const [projects, setProjects] = useState([]);
   const [workTypes, setWorkTypes] = useState([]);
   const [projectFilter, setProjectFilter] = useState("");
+  const [expandedUsers, setExpandedUsers] = useState([]);
+  const [isAllExpanded, setIsAllExpanded] = useState(false);
+  const [approvalFilter, setApprovalFilter] = useState("all"); // 'all' | 'fullyApproved' | 'notFullyApproved'
+  const [showSummary, setShowSummary] = useState(false);
+
 
   const [addModal, setAddModal] = useState({ open: false, user: null, date: null });
   const [addData, setAddData] = useState({
@@ -147,12 +157,13 @@ export default function TimeEntriesPanel() {
   const openEditModal = (entry) => {
     setEditEntry(entry);
     setModalData({
-      clock_in_time: entry.clock_in_time,
-      clock_out_time: entry.clock_out_time,
+      clock_in_time: dayjs.utc(entry.clock_in_time).tz("Europe/Athens").format("YYYY-MM-DDTHH:mm"),
+      clock_out_time: dayjs.utc(entry.clock_out_time).tz("Europe/Athens").format("YYYY-MM-DDTHH:mm"),
       project_id: entry.project_id,
       work_type_id: entry.work_type_id,
       status: entry.status,
     });
+
   };
 
   const closeModal = () => {
@@ -310,13 +321,40 @@ export default function TimeEntriesPanel() {
   });
 
   const allDepartments = Array.from(new Set(users.map((u) => u.department)));
+  const departmentSummary = allDepartments.map((dept) => {
+    const deptUsers = users.filter((u) => u.department === dept);
+    const summary = {
+      department: dept,
+      fullyApproved: 0,
+      notFullyApproved: 0,
+    };
+
+    deptUsers.forEach((user) => {
+      const allApproved = user.entries.every((e) => e.status === "approved");
+      if (allApproved) {
+        summary.fullyApproved += 1;
+      } else {
+        summary.notFullyApproved += 1;
+      }
+    });
+
+    return summary;
+  });
   const allGroups = Array.from(new Set(users.map((u) => u.group)));
 
-  const filteredUsers = users.filter((u) =>
-    (nameFilter === "all" || u.id === nameFilter) &&
-    (departmentFilter === "all" || u.department === departmentFilter) &&
-    (groupFilter === "all" || u.group === groupFilter)
-  );
+  const filteredUsers = users
+    .filter((u) =>
+      (nameFilter === "all" || u.id === nameFilter) &&
+      (departmentFilter === "all" || u.department === departmentFilter) &&
+      (groupFilter === "all" || u.group === groupFilter)
+    )
+    .filter((u) => {
+      if (approvalFilter === "all") return true;
+      const allApproved = u.entries.every((e) => e.status === "approved");
+      return approvalFilter === "fullyApproved"
+        ? allApproved
+        : !allApproved;
+    });
 
   const groupedUsers = (() => {
     if (groupBy === "none") return [{ label: null, users: filteredUsers }];
@@ -433,6 +471,76 @@ export default function TimeEntriesPanel() {
       Clear All Filters
     </button>
   </div>
+  <div className="flex gap-2 mt-6">
+    <Button
+      variant={approvalFilter === "fullyApproved" ? "default" : "outline"}
+      onClick={() => setApprovalFilter("fullyApproved")}
+    >
+      Fully Approved
+    </Button>
+    <Button
+      variant={approvalFilter === "notFullyApproved" ? "default" : "outline"}
+      onClick={() => setApprovalFilter("notFullyApproved")}
+    >
+      Not Fully Approved
+    </Button>
+    <Button
+      variant={approvalFilter === "all" ? "default" : "outline"}
+      onClick={() => setApprovalFilter("all")}
+    >
+      Show All
+    </Button>
+  </div>
+  <div>
+  <button
+    className="bg-gray-200 px-3 py-1 rounded text-sm mt-6"
+    onClick={() => {
+      if (isAllExpanded) {
+        setExpandedUsers([]);
+        setIsAllExpanded(false);
+      } else {
+        const allIds = users.map(u => u.id);
+        setExpandedUsers(allIds);
+        setIsAllExpanded(true);
+      }
+    }}
+  >
+    {isAllExpanded ? "Collapse All" : "Expand All"}
+  </button>
+</div>
+<div className="mt-4">
+  <Button
+    variant="outline"
+    onClick={() => setShowSummary(!showSummary)}
+  >
+    {showSummary ? "Hide Department Summary" : "Show Department Summary"}
+  </Button>
+</div>
+{showSummary && (
+  <Card className="w-full mt-4">
+    <CardContent>
+      <h2 className="text-lg font-semibold mb-2">Department Summary (This Week)</h2>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Department</TableHead>
+            <TableHead className="text-center">Fully Approved</TableHead>
+            <TableHead className="text-center">Not Fully Approved</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {departmentSummary.map((dept, i) => (
+            <TableRow key={i}>
+              <TableCell>{dept.department}</TableCell>
+              <TableCell className="text-center">{dept.fullyApproved}</TableCell>
+              <TableCell className="text-center">{dept.notFullyApproved}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+)}
 </div>
       {groupedUsers.map((section, sIdx) => (
         <div key={sIdx}>
@@ -456,58 +564,117 @@ export default function TimeEntriesPanel() {
                     ))}
                   </span>
                 </h3>
-                <Accordion type="multiple">
+                <Accordion
+                  type="multiple"
+                  value={expandedUsers.includes(user.id)
+                    ? weekDays.map((_, idx) => `day-${user.id}-${idx}`)
+                    : []}
+                >
                   {weekDays.map((day, idx) => {
-                    const dayEntries = user.entries.filter((e) => dayjs(e.clock_in_time).isSame(day, "day"));
+                    const dayEntries = user.entries.filter((e) =>
+                      dayjs(e.clock_in_time).isSame(day, "day")
+                    );
                     if (dayEntries.length === 0) return null;
-                    const totalDuration = dayEntries.reduce((acc, e) => acc.add(getDuration(e.clock_in_time, e.clock_out_time)), dayjs.duration(0));
+
+                    const totalDuration = dayEntries.reduce(
+                      (acc, e) => acc.add(getDuration(e.clock_in_time, e.clock_out_time)),
+                      dayjs.duration(0)
+                    );
+
                     return (
                       <AccordionItem key={idx} value={`day-${user.id}-${idx}`}>
                         <AccordionTrigger>
                           <div className="flex justify-between w-full">
-                            <span>{day.format("ddd DD/MM/YYYY")} — {dayEntries.length} entries</span>
-                            <span className="text-sm text-gray-600">Total: {formatDuration(totalDuration)}</span>
+                            <span>
+                              {day.format("ddd DD/MM/YYYY")} — {dayEntries.length} entries
+                            </span>
+                            <span className="text-sm text-gray-600">
+                              Total: {formatDuration(totalDuration)}
+                            </span>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <Table>
+                          <Table className="table-fixed w-full">
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Edit</TableHead>
-                                <TableHead>Clock In</TableHead>
-                                <TableHead>Clock Out</TableHead>
-                                <TableHead>Duration</TableHead>
-                                <TableHead>Project</TableHead>
-                                <TableHead>Work Type</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead className="w-[50px]">Edit</TableHead>
+                                <TableHead className="w-[80px]">Clock In</TableHead>
+                                <TableHead className="w-[80px]">Clock Out</TableHead>
+                                <TableHead className="w-[90px]">Duration</TableHead>
+                                <TableHead className="w-[240px]">Project</TableHead>
+                                <TableHead className="w-[140px]">Work Type</TableHead>
+                                <TableHead className="w-[100px]">Status</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {dayEntries.map((entry, j) => (
                                 <TableRow key={j}>
-                                  <TableCell>
-                                    <button onClick={() => openEditModal(entry)} title="Edit">✏️</button>
+                                  <TableCell className="w-[50px]">
+                                    <button
+                                      onClick={() => openEditModal(entry)}
+                                      title="Edit"
+                                    >
+                                      ✏️
+                                    </button>
                                   </TableCell>
-                                  <TableCell>{dayjs(entry.clock_in_time).format("HH:mm")}</TableCell>
-                                  <TableCell>{entry.clock_out_time ? dayjs(entry.clock_out_time).format("HH:mm") : "—"}</TableCell>
-                                  <TableCell>{entry.clock_out_time ? formatDuration(getDuration(entry.clock_in_time, entry.clock_out_time)) : "—"}</TableCell>
-                                  <TableCell>{entry.project_id} - {entry.project_name}</TableCell>
-                                  <TableCell>{entry.work_type_name}</TableCell>
-                                  <TableCell>
-                                    <select value={entry.status} onChange={(e) => handleStatusChange(entry.id, e.target.value)} className="border px-2 py-1 rounded text-sm">
-                                      <option value="approved">Approved</option>
-                                      <option value="pending">Pending</option>
-                                    </select>
+                                  <TableCell className="w-[80px]">
+                                    {dayjs
+                                      .utc(entry.clock_in_time)
+                                      .tz("Europe/Athens")
+                                      .format("HH:mm")}
+                                  </TableCell>
+                                  <TableCell className="w-[80px]">
+                                    {entry.clock_out_time
+                                      ? dayjs
+                                          .utc(entry.clock_out_time)
+                                          .tz("Europe/Athens")
+                                          .format("HH:mm")
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell className="w-[90px]">
+                                    {entry.clock_out_time
+                                      ? formatDuration(
+                                          getDuration(
+                                            dayjs.utc(entry.clock_in_time).tz("Europe/Athens"),
+                                            dayjs.utc(entry.clock_out_time).tz("Europe/Athens")
+                                          )
+                                        )
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell className="w-[240px]">
+                                    {entry.project_id} - {entry.project_name}
+                                  </TableCell>
+                                  <TableCell className="w-[140px]">
+                                    {entry.work_type_name}
+                                  </TableCell>
+                                  <TableCell className="w-[100px]">
+                                    <button
+                                      onClick={() =>
+                                        handleStatusChange(
+                                          entry.id,
+                                          entry.status === "approved" ? "pending" : "approved"
+                                        )
+                                      }
+                                      className={`px-3 py-1 rounded text-sm font-semibold ${
+                                        entry.status === "approved"
+                                          ? "bg-blue-600 text-white"
+                                          : "bg-gray-300 text-gray-800"
+                                      }`}
+                                    >
+                                      {entry.status === "approved" ? "Approved" : "Pending"}
+                                    </button>
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
+
                         </AccordionContent>
                       </AccordionItem>
                     );
                   })}
                 </Accordion>
+
               </CardContent>
             </Card>
           ))}
@@ -527,32 +694,39 @@ export default function TimeEntriesPanel() {
               <Input value={dayjs(editEntry.clock_in_time).format("YYYY-MM-DD")} disabled />
               <label>Clock In</label>
               <Input
-                type="time"
-                value={dayjs(modalData.clock_in_time).format("HH:mm")}
-                onChange={e =>
-                  setModalData(prev => ({
-                    ...prev,
-                    clock_in_time: dayjs(editEntry.clock_in_time)
-                      .hour(Number(e.target.value.split(":")[0]))
-                      .minute(Number(e.target.value.split(":")[1]))
-                      .format("YYYY-MM-DDTHH:mm"),
-                  }))
-                }
-              />
+  type="time"
+  value={dayjs(modalData.clock_in_time).format("HH:mm")}
+  onChange={(e) => {
+    const [hour, minute] = e.target.value.split(":").map(Number);
+    const updated = dayjs(modalData.clock_in_time)
+      .hour(hour)
+      .minute(minute)
+      .format("YYYY-MM-DDTHH:mm");
+    setModalData((prev) => ({
+      ...prev,
+      clock_in_time: updated,
+    }));
+  }}
+/>
+
               <label>Clock Out</label>
-              <Input
-                type="time"
-                value={dayjs(modalData.clock_out_time).format("HH:mm")}
-                onChange={e =>
-                  setModalData(prev => ({
-                    ...prev,
-                    clock_out_time: dayjs(editEntry.clock_in_time)
-                      .hour(Number(e.target.value.split(":")[0]))
-                      .minute(Number(e.target.value.split(":")[1]))
-                      .format("YYYY-MM-DDTHH:mm"),
-                  }))
-                }
-              />
+ <Input
+  type="time"
+  value={dayjs(modalData.clock_out_time).format("HH:mm")}
+  onChange={(e) => {
+    const [hour, minute] = e.target.value.split(":").map(Number);
+    const updated = dayjs(modalData.clock_out_time)
+      .hour(hour)
+      .minute(minute)
+      .format("YYYY-MM-DDTHH:mm");
+    setModalData((prev) => ({
+      ...prev,
+      clock_out_time: updated,
+    }));
+  }}
+/>
+
+
               <label>Project</label>
               <Input
                 placeholder="Type to filter projects"

@@ -118,7 +118,18 @@ export default function UserFormModal({ open, onClose, onSubmit, userToEdit }) {
           className={`w-full mb-2 p-2 border rounded ${userToEdit ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
           placeholder="User ID (xx.xx.xx.xxxx)"
           value={formData.id}
-          onChange={(e) => handleChange("id", e.target.value)}
+          onChange={(e) => {
+  const value = e.target.value.replace(/[^\d]/g, "");
+  const formatted = value
+    .slice(0, 2)
+    .concat(value.length > 2 ? "." : "")
+    .concat(value.slice(2, 4))
+    .concat(value.length > 4 ? "." : "")
+    .concat(value.slice(4, 6))
+    .concat(value.length > 6 ? "." : "")
+    .concat(value.slice(6, 10));
+  handleChange("id", formatted);
+}}
           disabled={!!userToEdit}
         />
 
