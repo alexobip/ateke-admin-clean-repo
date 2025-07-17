@@ -14,6 +14,8 @@ import ProjectsPanel from "./ProjectsPanel";
 import WhoIsWorking from "./WhoIsWorking";
 import TimeEntriesPanel from "./TimeEntriesPanel";
 import UserSalarySettingsPanel from "./UserSalarySettingsPanel";
+import PayrollReportPanel from "./PayrollReportPanel";
+
 
 const navItems = [
   { key: "who", label: "Who's Working", icon: <LayoutDashboardIcon className="w-4 h-4 mr-2" /> },
@@ -22,6 +24,7 @@ const navItems = [
   { key: "projects", label: "Projects", icon: <FolderIcon className="w-4 h-4 mr-2" /> },
   { key: "salary", label: "Salary Settings", icon: <DollarSignIcon className="w-4 h-4 mr-2" /> },
   { key: "timeoff", label: "Time Off", icon: <CalendarCheckIcon className="w-4 h-4 mr-2" /> },
+  { key: "payroll", label: "Payroll Report", icon: <DollarSignIcon className="w-4 h-4 mr-2" /> },
 ];
 
 export default function AdminPanel() {
@@ -59,6 +62,7 @@ export default function AdminPanel() {
         {activeTab === "users" && <UsersPanel />}
         {activeTab === "projects" && <ProjectsPanel />}
         {activeTab === "salary" && <UserSalarySettingsPanel />}
+        {activeTab === "payroll" && <PayrollReportPanel />}
         {/* You can add other panels like timeoff here if needed */}
       </main>
     </div>

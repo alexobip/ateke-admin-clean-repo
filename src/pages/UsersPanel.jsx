@@ -17,6 +17,7 @@ import dayjs from "dayjs";
 
 const API_BASE_URL = "http://localhost:3000";
 
+
 export default function UsersPanel() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -30,6 +31,7 @@ export default function UsersPanel() {
     group_name: "",
     created_at: "",
   });
+  const [isActiveFilter, setIsActiveFilter] = useState("all"); // "all", true ή false
   const [groupBy, setGroupBy] = useState("none");
   const [collapsedGroups, setCollapsedGroups] = useState({});
   const [showFormModal, setShowFormModal] = useState(false);
@@ -49,15 +51,22 @@ export default function UsersPanel() {
     }
   };
 
-  useEffect(() => {
-    const result = users.filter((user) =>
-      Object.entries(filters).every(([key, value]) => {
-        if (!value) return true;
-        return user[key]?.toString().toLowerCase().includes(value.toLowerCase());
-      })
-    );
-    setFilteredUsers(result);
-  }, [filters, users]);
+ useEffect(() => {
+  const result = users.filter((user) => {
+    const matchesFilters = Object.entries(filters).every(([key, value]) => {
+      if (!value) return true;
+      return user[key]?.toString().toLowerCase().includes(value.toLowerCase());
+    });
+
+    const matchesIsActive =
+      isActiveFilter === "all" ? true : user.is_active === isActiveFilter;
+
+    return matchesFilters && matchesIsActive;
+  });
+
+  setFilteredUsers(result);
+}, [filters, users, isActiveFilter]);
+
 
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -119,9 +128,40 @@ export default function UsersPanel() {
       <div className="flex justify-between items-center px-6 pt-6">
         <h2 className="text-xl font-bold">Users</h2>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setGroupBy("none")}>
-            Show All
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (isActiveFilter === "all") setIsActiveFilter(true);       // Show Active
+              else if (isActiveFilter === true) setIsActiveFilter(false);  // Show Inactive
+              else setIsActiveFilter("all");                                // Show All
+            }}
+          >
+            {isActiveFilter === "all"
+              ? "Show All"
+              : isActiveFilter === true
+              ? "Show Active"
+              : "Show Inactive"}
           </Button>
+          <Button
+            className="bg-green-600 text-white hover:bg-green-700"
+            onClick={() => {
+              setFilters({
+                id: "",
+                full_name: "",
+                email: "",
+                pin: "",
+                role_name: "",
+                department_name: "",
+                group_name: "",
+                created_at: "",
+                user_type_title: "",
+              });
+              setIsActiveFilter("all"); // ✅ reset το φίλτρο ενεργών
+            }}
+          >
+            Clear All Filters
+          </Button>          
+          
           <Button
             variant={groupBy === "department_name" ? "secondary" : "outline"}
             onClick={() => setGroupBy("department_name")}
@@ -142,6 +182,13 @@ export default function UsersPanel() {
           </Button>
           <Button
             variant="outline"
+            onClick={() => setGroupBy("none")}
+          >
+            Clear Grouping
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={() => {
               setEditUser(null);
               setShowFormModal(true);
@@ -156,15 +203,18 @@ export default function UsersPanel() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Edit</TableHead>
-              <TableHead>ID</TableHead>
+              <TableHead className="w-[80px]">Edit</TableHead>
+              <TableHead className="w-[100px]">ID</TableHead>
               <TableHead>Full Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>PIN</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Group</TableHead>
-              <TableHead>Created At</TableHead>
+              <TableHead className="w-[140px]">Email</TableHead>
+              <TableHead className="w-[80px]">PIN</TableHead>
+              <TableHead className="w-[120px]">Role</TableHead>
+              <TableHead>User Type</TableHead>
+              <TableHead className="w-[140px]">Department</TableHead>
+              <TableHead className="w-[140px]">Group</TableHead>
+              <TableHead className="w-[16 0px]">Created At</TableHead>
+              <TableHead className="w-[60px] text-center">Status</TableHead>
+
             </TableRow>
             <TableRow>
               <TableCell />
@@ -206,6 +256,13 @@ export default function UsersPanel() {
               <TableCell>
                 <Input
                   placeholder="Filter"
+                  value={filters.user_type_title || ""}
+                  onChange={(e) => handleFilterChange("user_type_title", e.target.value)}
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  placeholder="Filter"
                   value={filters.department_name}
                   onChange={(e) => handleFilterChange("department_name", e.target.value)}
                 />
@@ -224,6 +281,7 @@ export default function UsersPanel() {
                   onChange={(e) => handleFilterChange("created_at", e.target.value)}
                 />
               </TableCell>
+              
             </TableRow>
           </TableHeader>
 
@@ -248,6 +306,7 @@ export default function UsersPanel() {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{user.pin}</TableCell>
                       <TableCell>{user.role_name}</TableCell>
+                      <TableCell>{user.user_type_title}</TableCell>
                       <TableCell>{user.department_name}</TableCell>
                       <TableCell>{user.group_name ?? "–"}</TableCell>
                       <TableCell>
@@ -255,6 +314,16 @@ export default function UsersPanel() {
                           ? dayjs(user.created_at).format("DD/MM/YYYY HH:mm:ss")
                           : ""}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <span
+                          className={`inline-block w-3 h-3 rounded-full ${
+                            user.is_active ? "bg-green-500" : "bg-red-500"
+                          }`}
+                          title={user.is_active ? "Active" : "Inactive"}
+                        ></span>
+                      </TableCell>
+
+
                     </TableRow>
                   ))}
               </React.Fragment>
@@ -264,13 +333,13 @@ export default function UsersPanel() {
       </CardContent>
 
      <UserFormModal
-  open={showFormModal}
+  isOpen={showFormModal}
   onClose={() => {
     setShowFormModal(false);
     setEditUser(null);
   }}
   onSubmit={handleAddUser}
-  userToEdit={editUser}
+  initialData={editUser}
 />
     </Card>
   );

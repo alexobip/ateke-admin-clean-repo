@@ -55,7 +55,6 @@ export default function TimeEntriesPanel() {
   const [editEntry, setEditEntry] = useState(null);
   const [modalData, setModalData] = useState({});
   const [projects, setProjects] = useState([]);
-  const [workTypes, setWorkTypes] = useState([]);
   const [projectFilter, setProjectFilter] = useState("");
   const [expandedUsers, setExpandedUsers] = useState([]);
   const [isAllExpanded, setIsAllExpanded] = useState(false);
@@ -68,7 +67,6 @@ export default function TimeEntriesPanel() {
     clock_in_time: "",
     clock_out_time: "",
     project_id: "",
-    work_type_id: "",
   });
 
   const yearsWithData = Array.from(
@@ -105,9 +103,7 @@ export default function TimeEntriesPanel() {
     fetch("http://localhost:3000/webProjects")
       .then(res => res.json())
       .then(setProjects);
-    fetch("http://localhost:3000/work-types") // <-- fix here
-      .then(res => res.json())
-      .then(setWorkTypes);
+    
   }, []);
 
   const fetchEntries = async () => {
@@ -160,7 +156,6 @@ export default function TimeEntriesPanel() {
       clock_in_time: dayjs.utc(entry.clock_in_time).tz("Europe/Athens").format("YYYY-MM-DDTHH:mm"),
       clock_out_time: dayjs.utc(entry.clock_out_time).tz("Europe/Athens").format("YYYY-MM-DDTHH:mm"),
       project_id: entry.project_id,
-      work_type_id: entry.work_type_id,
       status: entry.status,
     });
 
@@ -183,7 +178,7 @@ export default function TimeEntriesPanel() {
 
   // In saveEdit:
   const saveEdit = async () => {
-    const { clock_in_time, clock_out_time, project_id, work_type_id, status } = modalData;
+    const { clock_in_time, clock_out_time, project_id, status } = modalData;
     // Overlap check
     if (
       hasOverlap(
@@ -206,7 +201,6 @@ export default function TimeEntriesPanel() {
       clock_in_time,
       clock_out_time,
       project_id: parseInt(project_id, 10),
-      work_type_id: parseInt(work_type_id, 10),
       status,
     };
 
@@ -238,7 +232,6 @@ export default function TimeEntriesPanel() {
       clock_in_time: dayjs(date).format("YYYY-MM-DDT09:00"), // default 09:00
       clock_out_time: dayjs(date).format("YYYY-MM-DDT17:00"), // default 17:00
       project_id: "",
-      work_type_id: "",
     });
   };
 
@@ -248,13 +241,12 @@ export default function TimeEntriesPanel() {
       clock_in_time: "",
       clock_out_time: "",
       project_id: "",
-      work_type_id: "",
     });
   };
 
   const saveAdd = async () => {
-    const { clock_in_time, clock_out_time, project_id, work_type_id } = addData;
-    if (!clock_in_time || !clock_out_time || !project_id || !work_type_id) {
+    const { clock_in_time, clock_out_time, project_id } = addData;
+    if (!clock_in_time || !clock_out_time || !project_id) {
       alert("All fields are required.");
       return;
     }
@@ -280,7 +272,6 @@ export default function TimeEntriesPanel() {
       clock_in_time: dayjs(clock_in_time).toISOString(),
       clock_out_time: dayjs(clock_out_time).toISOString(),
       project_id: parseInt(project_id, 10),
-      work_type_id: parseInt(work_type_id, 10),
       status: "pending",
     };
     console.log("Payload:", payload); // <-- Add this line here
@@ -602,7 +593,6 @@ export default function TimeEntriesPanel() {
                                 <TableHead className="w-[80px]">Clock Out</TableHead>
                                 <TableHead className="w-[90px]">Duration</TableHead>
                                 <TableHead className="w-[240px]">Project</TableHead>
-                                <TableHead className="w-[140px]">Work Type</TableHead>
                                 <TableHead className="w-[100px]">Status</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -643,9 +633,6 @@ export default function TimeEntriesPanel() {
                                   </TableCell>
                                   <TableCell className="w-[240px]">
                                     {entry.project_id} - {entry.project_name}
-                                  </TableCell>
-                                  <TableCell className="w-[140px]">
-                                    {entry.work_type_name}
                                   </TableCell>
                                   <TableCell className="w-[100px]">
                                     <button
@@ -751,21 +738,7 @@ export default function TimeEntriesPanel() {
                     </option>
                   ))}
               </select>
-              <label>Work Type</label>
-              <select
-                value={modalData.work_type_id}
-                onChange={e => setModalData(prev => ({ ...prev, work_type_id: parseInt(e.target.value) }))}
-                className="border px-2 py-1 rounded w-full"
-              >
-                <option value="">Select a work type</option>
-                {workTypes
-                  .filter(wt => wt.is_active)
-                  .map(wt => (
-                    <option key={wt.id} value={wt.id}>
-                      {wt.title}
-                    </option>
-                  ))}
-              </select>
+              
               <label>Status</label>
               <select
                 value={modalData.status}
@@ -879,21 +852,7 @@ export default function TimeEntriesPanel() {
                     </option>
                   ))}
               </select>
-              <label>Work Type</label>
-              <select
-                value={addData.work_type_id}
-                onChange={e => setAddData(prev => ({ ...prev, work_type_id: parseInt(e.target.value) }))}
-                className="border px-2 py-1 rounded w-full"
-              >
-                <option value="">Select a work type</option>
-                {workTypes
-                  .filter(wt => wt.is_active)
-                  .map(wt => (
-                    <option key={wt.id} value={wt.id}>
-                      {wt.title}
-                    </option>
-                  ))}
-              </select>
+              
             </div>
             <DialogFooter>
               <Button onClick={closeAddModal} variant="outline">Cancel</Button>
