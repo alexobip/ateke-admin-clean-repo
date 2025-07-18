@@ -73,13 +73,38 @@ export default function UsersPanel() {
   };
 
   const handleAddUser = async (userData) => {
-  if (editUser) {
-    await axios.put(`${API_BASE_URL}/webusers/${userData.id}`, userData);
-  } else {
-    await axios.post(`${API_BASE_URL}/webusers`, userData);
-  }
-  fetchUsers();
-};
+    try {
+      let successMessage;
+      
+      if (editUser) {
+        await axios.put(`${API_BASE_URL}/webusers/${userData.id}`, userData);
+        successMessage = "User updated successfully!";
+      } else {
+        await axios.post(`${API_BASE_URL}/webusers`, userData);
+        successMessage = "User created successfully!";
+      }
+      
+      // Show success message
+      alert(successMessage);
+      
+      // Close modal and reset state
+      setShowFormModal(false);
+      setEditUser(null);
+      
+      // Refresh the users list
+      await fetchUsers();
+      
+    } catch (error) {
+      console.error("Error saving user:", error);
+      
+      // Show error message
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          `Failed to ${editUser ? 'update' : 'create'} user. Please try again.`;
+      
+      alert(`Error: ${errorMessage}`);
+    }
+  };
 
 
   const handleEditUser = (user) => {

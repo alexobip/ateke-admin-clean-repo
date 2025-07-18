@@ -26,6 +26,8 @@
     const [userSalaryHistory, setUserSalaryHistory] = useState([]);
     const [userSearch, setUserSearch] = useState("");
     
+    const selectedUser = users.find(u => u.id === selectedUserId);
+    const userTypeId = selectedUser?.user_type_id;
 
 
     const [salaryData, setSalaryData] = useState({
@@ -37,7 +39,6 @@
       norm_daily_hours: "8.0",
       away_work: "",
       is_driver: false,
-      user_type_id: "",
       has_monthly_salary: false,
       monthly_salary: 0,
       monthly_periods: "12",
@@ -47,7 +48,8 @@
     const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
     useEffect(() => {
-  const type = Number(salaryData.user_type_id);
+ const type = Number(userTypeId);
+
 
   if (type === 1) {
     setUseMonthlySalary(true);
@@ -77,7 +79,7 @@
       norm_daily_hours: "8.5",
     }));
   }
-}, [salaryData.user_type_id]);
+}, [userTypeId]);
 
 
     useEffect(() => {
@@ -88,7 +90,7 @@
     }, []);
 
     useEffect(() => {
-  axios.get("/api/users").then(res => setUsers(res.data || []));
+  axios.get("http://localhost:3000/webusers").then(res => setUsers(res.data || []));
 }, []);
 
 
@@ -103,10 +105,9 @@
       }
     }, [baseSalary, baseOvertime, useCustomDays]);
 
-    useEffect(() => {
-  const type = Number(salaryData.user_type_id);
+   useEffect(() => {
+  const type = Number(userTypeId);
 
-  // Only apply logic if type is NOT locked
   const isEditable = ![1, 2, 3].includes(type);
 
   setSalaryData(prev => ({
@@ -117,7 +118,8 @@
       ? (prev.monthly_periods || "12")
       : (isEditable ? "" : prev.monthly_periods),
   }));
-}, [useMonthlySalary]);
+}, [useMonthlySalary, userTypeId]);
+
 
 
 useEffect(() => {
@@ -143,7 +145,6 @@ useEffect(() => {
   has_monthly_salary: !!last.monthly_salary,
   monthly_salary: last.monthly_salary || "",
   monthly_periods: last.monthly_periods || "12",
-  user_type_id: last.user_type_id || "",
 });
 
 
@@ -172,7 +173,7 @@ useEffect(() => {
   return;
 }
 
-      const type = Number(salaryData.user_type_id);
+      const type = Number(userTypeId);
 
 // 1. Check if monthly salary is required
 if ((type === 1 || type === 2) && !salaryData.monthly_salary) {
@@ -244,7 +245,6 @@ if (duplicate) {
           norm_daily_hours: "8.0",
           away_work: "",
           is_driver: false,
-          user_type_id: "",
           has_monthly_salary: false,
           monthly_salary: 0,
           monthly_periods: "12",
@@ -259,7 +259,7 @@ if (duplicate) {
 
     const getUserName = (id) => {
       const u = users.find((u) => u.id === id);
-      return u ? `${u.name} (${u.id})` : id;
+      return u ? `${u.full_name} (${u.id})` : id;
     };
 
     const getUserTypeTitle = (id) => {
@@ -282,23 +282,32 @@ if (duplicate) {
     onChange={(e) => setUserSearch(e.target.value)}
     className="mb-2"
   />
-  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-    <SelectTrigger className="max-w-[300px]">
-      <SelectValue placeholder="Select user" />
-    </SelectTrigger>
-    <SelectContent>
-      {users
-        .filter((user) =>
-          user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-          user.id.toLowerCase().includes(userSearch.toLowerCase())
-        )
-        .map((user) => (
-          <SelectItem key={user.id} value={user.id}>
-            {user.name} ({user.id})
-          </SelectItem>
-        ))}
-    </SelectContent>
-  </Select>
+  <div className="flex items-center gap-4">
+    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+      <SelectTrigger className="max-w-[300px]">
+        <SelectValue placeholder="Select user" />
+      </SelectTrigger>
+      <SelectContent>
+        {users
+          .filter((user) =>
+            user.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+            user.id.toLowerCase().includes(userSearch.toLowerCase())
+          )
+          .map((user) => (
+            <SelectItem key={user.id} value={user.id}>
+              {user.full_name} ({user.id})
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+    {selectedUser && (
+      <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md">
+        <span className="text-sm text-blue-700 font-medium">
+          User Type: {selectedUser.user_type_title || 'N/A'}
+        </span>
+      </div>
+    )}
+  </div>
 </div>
 
 </div>
@@ -362,17 +371,7 @@ if (duplicate) {
 
             <h4 className="text-md font-semibold mt-6">General Settings</h4>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium">User Type</label>
-                <Select value={salaryData.user_type_id} onValueChange={(val) => setSalaryData({ ...salaryData, user_type_id: val })}>
-                  <SelectTrigger><SelectValue placeholder="Select user type" /></SelectTrigger>
-                  <SelectContent>
-                    {userTypes.map(type => (
-                      <SelectItem key={type.id} value={String(type.id)}>{type.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+             
               <div>
                 <label className="text-xs font-medium">Away Work (€)</label>
                 <Input
@@ -390,7 +389,7 @@ if (duplicate) {
             <div className="flex items-center space-x-2 mt-6 mb-2">
               <Checkbox
   checked={useMonthlySalary}
-  disabled={["1", "2", "3"].includes(salaryData.user_type_id)}
+  disabled={["1", "2", "3"].includes(String(userTypeId))}
   className="opacity-60 cursor-not-allowed"
 />
 <span className="text-gray-500">Has Monthly Salary</span>
@@ -408,9 +407,9 @@ if (duplicate) {
                   <label className="text-xs font-medium">Monthly Periods (12/14)</label>
                   <Select
   disabled={
-    salaryData.user_type_id === "1" ||
-    salaryData.user_type_id === "2" ||
-    (!useMonthlySalary && salaryData.user_type_id !== "3")
+    String(userTypeId) === "1" ||
+    String(userTypeId) === "2" ||
+    (!useMonthlySalary && String(userTypeId) !== "3")
   }
   value={salaryData.monthly_periods}
   onValueChange={(val) => setSalaryData({ ...salaryData, monthly_periods: val })}
@@ -464,7 +463,14 @@ if (duplicate) {
   <tr>
     <th className="p-2 border">ID</th>
     <th className="p-2 border">User ID</th>
-    <th className="p-2 border">Effective From</th>
+    <th className="p-2 border">Effective From
+
+      {selectedUser && (
+  <div className="mt-1 text-sm text-gray-600">
+    Τύπος χρήστη: <strong>{getUserTypeTitle(selectedUser.user_type_id)}</strong>
+  </div>
+)}
+    </th>
     {days.map(d => (
       <th key={`s_${d}`} className="p-2 border capitalize">Salary {d}</th>
     ))}
@@ -503,7 +509,7 @@ if (duplicate) {
       <td className="p-2 border">{record.monthly_periods}</td>
       <td className="p-2 border">{record.away_work}</td>
       <td className="p-2 border">{record.is_driver ? "Yes" : "No"}</td>
-      <td className="p-2 border">{getUserTypeTitle(record.user_type_id)}</td>
+      <td className="p-2 border">{selectedUser ? getUserTypeTitle(selectedUser.user_type_id) : "N/A"}</td>
       <td className="p-2 border">{record.has_monthly_salary ? "Yes" : "No"}</td>
       <td className="p-2 border">{record.created_at ? new Date(record.created_at).toLocaleString("el-GR") : ""}</td>
       <td className="p-2 border">{record.days_per_week}</td>
