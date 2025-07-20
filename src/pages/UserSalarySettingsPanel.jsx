@@ -14,18 +14,15 @@
   import API_CONFIG, { buildUrl } from "../config/api";
 
   export default function UserSalarySettingsPanel() {
-    const [users, setUsers] = useState([]);
-    const [userTypes, setUserTypes] = useState([]);
-    const [departments, setDepartments] = useState([]);
-    const [groups, setGroups] = useState([]);
-    const [selectedUserId, setSelectedUserId] = useState("");
-    const [useCustomDays, setUseCustomDays] = useState(false);
-    const [useMonthlySalary, setUseMonthlySalary] = useState(false);
-    const [baseSalary, setBaseSalary] = useState("");
-    const [baseOvertime, setBaseOvertime] = useState("");
-    const [salaryRecords, setSalaryRecords] = useState([]);
-    const [userSalaryHistory, setUserSalaryHistory] = useState([]);
-    const [userSearch, setUserSearch] = useState("");
+  const [users, setUsers] = useState([]);
+  const [userTypes, setUserTypes] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [useCustomDays, setUseCustomDays] = useState(false);
+  const [useMonthlySalary, setUseMonthlySalary] = useState(false);
+  const [baseSalary, setBaseSalary] = useState("");
+  const [baseOvertime, setBaseOvertime] = useState("");
+  const [userSalaryHistory, setUserSalaryHistory] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
     
     const selectedUser = users.find(u => u.id === selectedUserId);
     const userTypeId = selectedUser?.user_type_id;
@@ -43,10 +40,28 @@
       has_monthly_salary: false,
       monthly_salary: 0,
       monthly_periods: "12",
-      days_per_week: "5", // Default to 5 days per week
+      // ✅ NEW: Individual workday flags replacing days_per_week
+      works_monday: true,
+      works_tuesday: true,
+      works_wednesday: true,
+      works_thursday: true,
+      works_friday: true,
+      works_saturday: false,
+      works_sunday: false,
     });
 
     const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    
+    // ✅ NEW: Workday mapping for easier management
+    const workdayLabels = {
+      works_monday: "Monday",
+      works_tuesday: "Tuesday", 
+      works_wednesday: "Wednesday",
+      works_thursday: "Thursday",
+      works_friday: "Friday",
+      works_saturday: "Saturday",
+      works_sunday: "Sunday"
+    };
 
     useEffect(() => {
  const type = Number(userTypeId);
@@ -85,9 +100,6 @@
 
     useEffect(() => {
       axios.get(buildUrl(API_CONFIG.endpoints.userTypesApi)).then(res => setUserTypes(res.data || []));
-      axios.get(buildUrl(API_CONFIG.endpoints.departmentsApi)).then(res => setDepartments(res.data || []));
-      axios.get(buildUrl(API_CONFIG.endpoints.groupsApi)).then(res => setGroups(res.data || []));
-    
     }, []);
 
     useEffect(() => {
@@ -140,15 +152,49 @@ useEffect(() => {
             preload[`overtime_${d}`] = last[`overtime_${d}`] || "";
           });
 
+          // ✅ NEW: Load workday boolean flags, with fallback to days_per_week conversion
+          const workdayData = {};
+          
+          console.log('Loading workday data for user:', last.user_id, last); // Debug log
+          
+          Object.keys(workdayLabels).forEach(workdayField => {
+            if (last[workdayField] !== undefined && last[workdayField] !== null) {
+              // Use the new boolean workday fields if available
+              workdayData[workdayField] = Boolean(last[workdayField]);
+              console.log(`${workdayField}: ${last[workdayField]} -> ${workdayData[workdayField]}`);
+            } else if (last.days_per_week) {
+              // Fallback: convert days_per_week to boolean flags
+              const daysPerWeek = parseInt(last.days_per_week);
+              console.log(`Converting days_per_week ${daysPerWeek} to workday flags`);
+              
+              // Fixed logic: Map workdays correctly
+              const dayMapping = {
+                'works_monday': 1,
+                'works_tuesday': 2, 
+                'works_wednesday': 3,
+                'works_thursday': 4,
+                'works_friday': 5,
+                'works_saturday': 6,
+                'works_sunday': 7
+              };
+              
+              workdayData[workdayField] = (dayMapping[workdayField] || 0) <= daysPerWeek;
+              console.log(`${workdayField} -> ${workdayData[workdayField]} (day ${dayMapping[workdayField]} <= ${daysPerWeek})`);
+            } else {
+              // Default: Mon-Fri only
+              workdayData[workdayField] = ['works_monday', 'works_tuesday', 'works_wednesday', 'works_thursday', 'works_friday'].includes(workdayField);
+              console.log(`${workdayField} -> ${workdayData[workdayField]} (default)`);
+            }
+          });
+
           setSalaryData({
-  ...preload,
-  effective_from: "", // ✅ leave the date blank
-  has_monthly_salary: !!last.monthly_salary,
-  monthly_salary: last.monthly_salary || "",
-  monthly_periods: last.monthly_periods || "12",
-});
-
-
+            ...preload,
+            ...workdayData,
+            effective_from: "", // ✅ leave the date blank
+            has_monthly_salary: !!last.monthly_salary,
+            monthly_salary: last.monthly_salary || "",
+            monthly_periods: last.monthly_periods || "12",
+          });
 
           setUseMonthlySalary(!!last.monthly_salary);
           setUseCustomDays(!!(last.salary_tue && last.salary_wed));
@@ -196,16 +242,35 @@ for (const d of days) {
   }
 }
 
-      const filledData = { ...salaryData };
+// ✅ NEW: Validate at least one workday is selected
+const hasAnyWorkday = Object.keys(workdayLabels).some(field => salaryData[field]);
+if (!hasAnyWorkday) {
+  alert("Please select at least one workday.");
+  return;
+}
+
+const filledData = { ...salaryData };
 days.forEach(day => {
   if (!filledData[`overtime_${day}`]) {
     filledData[`overtime_${day}`] = "0";
   }
 });
 
-const data = { ...filledData, user_id: selectedUserId, effective_from: salaryData.effective_from, };
+  const data = { ...filledData, user_id: selectedUserId, effective_from: salaryData.effective_from };
 
-      // Check for duplicate date for this user
+  // ✅ DEBUG: Log the data being sent to backend
+  console.log('Saving salary data:', data);
+  console.log('Workday flags being sent:', {
+    works_monday: data.works_monday,
+    works_tuesday: data.works_tuesday,
+    works_wednesday: data.works_wednesday,
+    works_thursday: data.works_thursday,
+    works_friday: data.works_friday,
+    works_saturday: data.works_saturday,
+    works_sunday: data.works_sunday
+  });
+
+  // Check for duplicate date for this user
       const normalizeDate = (dateStr) => {
   return new Date(dateStr).toISOString().split("T")[0];
 };
@@ -249,18 +314,20 @@ if (duplicate) {
           has_monthly_salary: false,
           monthly_salary: 0,
           monthly_periods: "12",
-          days_per_week: "5",
+          // ✅ Reset workdays to default (Mon-Fri)
+          works_monday: true,
+          works_tuesday: true,
+          works_wednesday: true,
+          works_thursday: true,
+          works_friday: true,
+          works_saturday: false,
+          works_sunday: false,
         });
 
       } catch (err) {
         console.error("Error saving:", err);
         alert("Failed to save.");
       }
-    };
-
-    const getUserName = (id) => {
-      const u = users.find((u) => u.id === id);
-      return u ? `${u.full_name} (${u.id})` : id;
     };
 
     const getUserTypeTitle = (id) => {
@@ -426,31 +493,91 @@ if (duplicate) {
               </div>
             )}
 
-            <div className="mt-4 flex gap-6 items-end">
-  <div>
-    <label className="text-xs font-medium">Norm Daily Hours</label>
-    <Input
-      type="number"
-      className="max-w-[150px]"
-      value={salaryData.norm_daily_hours}
-      onChange={(e) =>
-        setSalaryData({ ...salaryData, norm_daily_hours: e.target.value })
-      }
-    />
-  </div>
+            <div className="mt-4 flex gap-6 items-start">
+              <div>
+                <label className="text-xs font-medium">Norm Daily Hours</label>
+                <Input
+                  type="number"
+                  className="max-w-[150px]"
+                  value={salaryData.norm_daily_hours}
+                  onChange={(e) =>
+                    setSalaryData({ ...salaryData, norm_daily_hours: e.target.value })
+                  }
+                />
+              </div>
 
-  <div>
-    <label className="text-xs font-medium">Days per Week</label>
-    <Input
-      type="number"
-      className="max-w-[150px]"
-      value={salaryData.days_per_week}
-      onChange={(e) =>
-        setSalaryData({ ...salaryData, days_per_week: e.target.value })
-      }
-    />
-  </div>
-</div>
+              {/* ✅ NEW: Workdays Selection replacing Days per Week */}
+              <div>
+                <label className="text-xs font-medium mb-2 block">Workdays</label>
+                <div className="grid grid-cols-2 gap-2 max-w-[300px]">
+                  {Object.entries(workdayLabels).map(([field, label]) => (
+                    <div key={field} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={salaryData[field]}
+                        onCheckedChange={(checked) => 
+                          setSalaryData({ ...salaryData, [field]: checked })
+                        }
+                      />
+                      <span className="text-sm">{label}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* ✅ Quick selection buttons */}
+                <div className="flex gap-2 mt-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setSalaryData({
+                        ...salaryData,
+                        works_monday: true,
+                        works_tuesday: true,
+                        works_wednesday: true,
+                        works_thursday: true,
+                        works_friday: true,
+                        works_saturday: false,
+                        works_sunday: false,
+                      });
+                    }}
+                  >
+                    Mon-Fri
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setSalaryData({
+                        ...salaryData,
+                        works_monday: true,
+                        works_tuesday: true,
+                        works_wednesday: true,
+                        works_thursday: true,
+                        works_friday: true,
+                        works_saturday: true,
+                        works_sunday: false,
+                      });
+                    }}
+                  >
+                    Mon-Sat
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      Object.keys(workdayLabels).forEach(field => {
+                        setSalaryData(prev => ({ ...prev, [field]: false }));
+                      });
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+            </div>
 
 
             <Button type="submit" className="mt-6">Save Settings</Button>
@@ -458,7 +585,7 @@ if (duplicate) {
 {userSalaryHistory.length > 0 && (
   <div className="mt-10 overflow-x-auto w-full border border-gray-200 rounded-lg">
   <h3 className="text-lg font-semibold mb-4 px-2 pt-2">Existing Salary Records for User</h3>
-  <div className="min-w-[1200px]">
+  <div className="min-w-[1400px]">
     <table className="w-full text-sm border-collapse">
       <thead className="bg-gray-100 text-xs">
   <tr>
@@ -486,7 +613,8 @@ if (duplicate) {
     <th className="p-2 border">User Type</th>
     <th className="p-2 border">Has Monthly</th>
     <th className="p-2 border">Created At</th>
-    <th className="p-2 border">Days/Week</th>
+    {/* ✅ NEW: Workdays columns replacing Days/Week */}
+    <th className="p-2 border">Workdays</th>
   </tr>
 </thead>
       <tbody>
@@ -513,7 +641,26 @@ if (duplicate) {
       <td className="p-2 border">{selectedUser ? getUserTypeTitle(selectedUser.user_type_id) : "N/A"}</td>
       <td className="p-2 border">{record.has_monthly_salary ? "Yes" : "No"}</td>
       <td className="p-2 border">{record.created_at ? new Date(record.created_at).toLocaleString("el-GR") : ""}</td>
-      <td className="p-2 border">{record.days_per_week}</td>
+      {/* ✅ NEW: Display workdays as compact badges */}
+      <td className="p-2 border">
+        <div className="flex flex-wrap gap-1">
+          {Object.entries(workdayLabels).map(([field, label]) => {
+            const isWorking = record[field];
+            const shortLabel = label.substring(0, 3); // Mon, Tue, etc.
+            return isWorking ? (
+              <span key={field} className="px-1 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                {shortLabel}
+              </span>
+            ) : null;
+          })}
+          {/* Fallback: show days_per_week if workday flags not available */}
+          {!Object.keys(workdayLabels).some(field => record[field] !== undefined) && record.days_per_week && (
+            <span className="px-1 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
+              {record.days_per_week} days/week
+            </span>
+          )}
+        </div>
+      </td>
     </tr>
   ))}
 </tbody>

@@ -29,8 +29,10 @@ import { Button } from "@/components/ui/button";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import API_CONFIG, { buildUrl } from "../config/api";
+// removed axios - using fetch for consistency with other endpoints
 import BonusModal from "../components/BonusModal";
 import BonusTable from "../components/BonusTable";
+import EditBonusModal from "../components/EditBonusModal";
 
 
 dayjs.extend(isoWeek);
@@ -65,6 +67,10 @@ export default function TimeEntriesPanel() {
     isOpen: false,
     selectedUser: null
   });
+  const [editBonusModal, setEditBonusModal] = useState({
+    isOpen: false,
+    selectedBonus: null
+  });
   const [userBonuses, setUserBonuses] = useState({}); // Store bonuses by user ID
   const currentUserRole = 'admin'; // TODO: Get from your auth system
 
@@ -79,7 +85,7 @@ export default function TimeEntriesPanel() {
   const yearsWithData = Array.from(
     new Set(availableWeeks.map(ws => ws.year()))
   ).sort((a, b) => b - a);
-  const [selectedYear, setSelectedYear] = useState(() =>
+  const [selectedYear, setSelectedYear] = useState(() => // eslint-disable-line no-unused-vars
     yearsWithData.length > 0 ? yearsWithData[0] : dayjs().year()
   );
 
@@ -106,16 +112,35 @@ export default function TimeEntriesPanel() {
     }
   }, [entries, weekStartDay]);
 
-  // Fetch bonuses when week changes
-  // useEffect(() => {
-  //   if (weekStart && users.length > 0) {
-  //     const weekStartDate = weekStart.format('YYYY-MM-DD');
-  //     // Fetch bonuses for all users in the current week
-  //     users.forEach(user => {
-  //       fetchUserBonuses(user.id, weekStartDate);
-  //     });
-  //   }
-  // }, [weekStart, users]);
+  // TODO: Bonuses functionality disabled due to authentication mismatch
+  // The bonuses endpoint requires different auth than other endpoints
+  // To enable: fix backend auth or adjust frontend auth headers
+  useEffect(() => {
+    if (weekStart && entries.length > 0) {
+      // eslint-disable-next-line no-unused-vars
+      const weekStartDate = weekStart.format('YYYY-MM-DD');
+      
+      // Calculate entries for this week
+      const entriesInWeek = entries.filter((e) => 
+        dayjs(e.clock_in_time).isBetween(weekStart, weekStart.add(7, "day"), null, "[)")
+      );
+      
+      // Get unique user IDs for this week
+      const userIds = Array.from(new Set(entriesInWeek.map((e) => e.user_id)));
+      
+      // Set empty bonuses to prevent UI issues (bonuses disabled)
+      const emptyBonuses = {};
+      userIds.forEach(userId => {
+        emptyBonuses[userId] = [];
+      });
+      setUserBonuses(emptyBonuses);
+      
+      // DISABLED: Authentication mismatch between bonuses endpoint and other endpoints
+      // userIds.forEach(userId => {
+      //   fetchUserBonuses(userId, weekStartDate);
+      // });
+    }
+  }, [weekStart, entries]);
 
   useEffect(() => {
     fetch(buildUrl(API_CONFIG.endpoints.projects))
@@ -285,6 +310,7 @@ export default function TimeEntriesPanel() {
   };
 
   // Bonus management functions
+  // eslint-disable-next-line no-unused-vars
   const openBonusModal = (user) => {
     setBonusModal({
       isOpen: true,
@@ -299,10 +325,62 @@ export default function TimeEntriesPanel() {
     });
   };
 
-  // Skip API calls to start - just keep them disabled for now
+  const openEditBonusModal = (bonus) => {
+    setEditBonusModal({
+      isOpen: true,
+      selectedBonus: bonus
+    });
+  };
+
+  const closeEditBonusModal = () => {
+    setEditBonusModal({
+      isOpen: false,
+      selectedBonus: null
+    });
+  };
+
+  // Fetch bonuses for a specific user and week
+  // eslint-disable-next-line no-unused-vars
   const fetchUserBonuses = async (userId, weekStartDate) => {
-    console.log('fetchUserBonuses called but API disabled for testing:', userId, weekStartDate);
-    // Temporarily disabled to avoid API errors during testing
+    try {
+      // Uncomment for debugging: console.log(`🎁 Fetching bonuses for user ${userId}, week ${weekStartDate}`);
+      
+      const response = await fetch(buildUrl(`/bonuses/user/${userId}/week/${weekStartDate}`), {
+        headers: {
+          "x-user-id": "admin",
+          "x-user-role": "admin"
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`✅ Fetched ${data.length} bonuses for user ${userId}`);
+      
+      // Update the user's bonuses in state
+      setUserBonuses(prev => ({
+        ...prev,
+        [userId]: data
+      }));
+      
+    } catch (err) {
+      // ✅ Gracefully handle missing bonuses endpoint
+      const status = err.message?.includes('401') ? 401 : 
+                     err.message?.includes('404') ? 404 : 500;
+      
+      if (status === 401 || status === 404) {
+        console.warn(`⚠️ Bonuses endpoint not available for user ${userId} (${status})`);
+        // Set empty bonuses array to prevent repeated calls
+        setUserBonuses(prev => ({
+          ...prev,
+          [userId]: []
+        }));
+      } else {
+        console.error('❌ Error fetching user bonuses:', err);
+      }
+    }
   };
 
   const handleBonusAdded = (newBonus) => {
@@ -311,16 +389,74 @@ export default function TimeEntriesPanel() {
       ...prev,
       [newBonus.user_id]: [...(prev[newBonus.user_id] || []), newBonus]
     }));
+    
+    console.log('✅ Bonus added to UI:', newBonus);
   };
 
   const handleApproveBonus = async (bonusId, status) => {
-    console.log('handleApproveBonus called but API disabled for testing:', bonusId, status);
-    // Temporarily disabled to avoid API errors during testing
+    try {
+      console.log(`🔄 ${status === 'approved' ? 'Approving' : 'Rejecting'} bonus ${bonusId}`);
+      
+      const response = await fetch(buildUrl(`/bonuses/${bonusId}/status`), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": "admin",
+          "x-user-role": "admin"
+        },
+        body: JSON.stringify({ status })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`✅ Bonus ${bonusId} ${status}:`, data);
+      
+      // Update the bonus status in state
+      setUserBonuses(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(userId => {
+          updated[userId] = updated[userId].map(bonus => 
+            bonus.id === bonusId 
+              ? { ...bonus, status, approved_at: new Date().toISOString() }
+              : bonus
+          );
+        });
+        return updated;
+      });
+      
+      alert(`Bonus ${status} successfully!`);
+      
+    } catch (err) {
+      console.error(`❌ Error ${status === 'approved' ? 'approving' : 'rejecting'} bonus:`, err);
+      alert(`Failed to ${status === 'approved' ? 'approve' : 'reject'} bonus. Please try again.`);
+    }
   };
 
   const handleEditBonus = (bonus) => {
-    // TODO: Implement edit functionality
-    console.log('Edit bonus:', bonus);
+    console.log('🔧 Opening edit modal for bonus:', bonus);
+    openEditBonusModal(bonus);
+  };
+
+  const handleBonusUpdated = (updatedBonus) => {
+    console.log('✅ Bonus updated in UI:', updatedBonus);
+    
+    // Update the bonus in state
+    setUserBonuses(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(userId => {
+        updated[userId] = updated[userId].map(bonus => 
+          bonus.id === updatedBonus.id 
+            ? { ...bonus, ...updatedBonus }
+            : bonus
+        );
+      });
+      return updated;
+    });
+    
+    alert('Bonus updated successfully!');
   };
 
   const saveAdd = async () => {
@@ -643,18 +779,7 @@ export default function TimeEntriesPanel() {
                   </button>
                   {user.name}
                   
-                  {/* Bonus Button - Admin Only */}
-                  {currentUserRole === 'admin' && (
-                    <button
-                      onClick={() => openBonusModal(user)}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm ml-4"
-                      title="Add bonus for this user"
-                    >
-                      🎁 Bonus
-                    </button>
-                  )}
-                  
-                  <span className="ml-2 flex gap-1">
+                  <span className="ml-2 flex gap-1 items-center">
                     {weekDays.map((day, idx) => (
                       <button
                         key={idx}
@@ -666,6 +791,17 @@ export default function TimeEntriesPanel() {
                         {day.format("ddd")[0]}{day.format("ddd")[1]}{day.format("ddd")[2]}
                       </button>
                     ))}
+                    
+                    {/* Bonus Button - Disabled due to auth mismatch */}
+                    {currentUserRole === 'admin' && (
+                      <button
+                        onClick={() => alert('Bonuses temporarily disabled due to authentication mismatch.\nCheck console for TODO notes.')}
+                        className="bg-gray-400 text-white px-2 py-0.5 rounded text-xs ml-2 cursor-not-allowed"
+                        title="Bonuses disabled - authentication mismatch with backend"
+                      >
+                        🎁
+                      </button>
+                    )}
                   </span>
                 </h3>
                 {expandedUsers.includes(user.id) && (
@@ -796,7 +932,18 @@ export default function TimeEntriesPanel() {
         onClose={closeBonusModal}
         selectedUser={bonusModal.selectedUser}
         weekStartDate={weekStart?.format('YYYY-MM-DD')}
+        weekStartDay={weekStartDay}
         onBonusAdded={handleBonusAdded}
+      />
+
+      {/* Edit Bonus Modal */}
+      <EditBonusModal
+        isOpen={editBonusModal.isOpen}
+        onClose={closeEditBonusModal}
+        bonus={editBonusModal.selectedBonus}
+        weekStartDate={weekStart?.format('YYYY-MM-DD')}
+        weekStartDay={weekStartDay}
+        onBonusUpdated={handleBonusUpdated}
       />
 
       {editEntry && (
@@ -901,6 +1048,7 @@ export default function TimeEntriesPanel() {
                           alert("Failed to delete entry.");
                         }
                       } catch (err) {
+                        console.error("Delete error:", err);
                         alert("Delete failed.");
                       }
                     }

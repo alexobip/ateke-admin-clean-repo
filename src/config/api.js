@@ -6,8 +6,10 @@ const API_CONFIG = {
   
   // Get current base URL based on environment
   getBaseUrl: () => {
+    // Force local development mode
+    return API_CONFIG.local;
     // Priority: 1. Environment variable, 2. Local development
-    return import.meta.env.VITE_API_BASE_URL || API_CONFIG.local;
+    // return import.meta.env.VITE_API_BASE_URL || API_CONFIG.local;
   },
   
   // Get Azure URL (for specific endpoints that need Azure)

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import API_CONFIG, { buildUrl } from '../config/api';
 // removed axios - using fetch for consistency with other endpoints
 
-const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded, weekStartDay = 4 }) => {
+const EditBonusModal = ({ isOpen, onClose, bonus, weekStartDate, onBonusUpdated, weekStartDay = 4 }) => {
   const [bonusData, setBonusData] = useState({
     day: '',
     amount: '',
@@ -15,8 +15,8 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Greek day names for the dropdown - memoized to prevent excessive recalculation
-  const dayOptions = useMemo(() => {
+  // Greek day names for the dropdown - dynamically calculated based on week start day
+  const getDayOptions = () => {
     const baseDays = [
       { value: 'sunday', label: 'Κυριακή', dayOfWeek: 0 },
       { value: 'monday', label: 'Δευτέρα', dayOfWeek: 1 },
@@ -28,15 +28,32 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
     ];
 
     // Calculate offset based on actual week start day
-    const options = baseDays.map(day => ({
+    return baseDays.map(day => ({
       ...day,
       offset: (day.dayOfWeek - weekStartDay + 7) % 7
     })).sort((a, b) => a.offset - b.offset);
-    
-    // Only log when weekStartDay changes to reduce console spam
-    if (weekStartDay !== 4) console.log('📅 Day options calculated for weekStartDay', weekStartDay);
-    return options;
-  }, [weekStartDay]);
+  };
+
+  const dayOptions = getDayOptions();
+
+  // Load bonus data when modal opens
+  useEffect(() => {
+    if (isOpen && bonus) {
+      // Calculate which day of the week this bonus is for
+      const bonusDate = new Date(bonus.bonus_date);
+      const dayOfWeekBonus = bonusDate.getDay(); // 0=Sunday, 1=Monday, etc.
+      
+      // Find the day option that matches this day of week
+      const selectedDay = dayOptions.find(d => d.dayOfWeek === dayOfWeekBonus);
+      
+      setBonusData({
+        day: selectedDay?.value || '',
+        amount: bonus.amount.toString(),
+        description: bonus.description
+      });
+      setError('');
+    }
+  }, [isOpen, bonus, weekStartDate, dayOptions]);
 
   // Calculate bonus date based on selected day
   const getBonusDate = (dayValue) => {
@@ -47,16 +64,6 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
     
     const bonusDate = new Date(weekStartDate);
     bonusDate.setDate(bonusDate.getDate() + selectedDay.offset);
-    
-    console.log('🗓️ Bonus date calculation:', {
-      selectedDayValue: dayValue,
-      selectedDayLabel: selectedDay.label,
-      offset: selectedDay.offset,
-      weekStartDate: weekStartDate,
-      calculatedDate: bonusDate.toISOString().split('T')[0],
-      dayOfWeek: bonusDate.getDay()
-    });
-    
     return bonusDate.toISOString().split('T')[0];
   };
 
@@ -103,19 +110,17 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
     try {
       const bonusDate = getBonusDate(bonusData.day);
       
-      const response = await fetch(buildUrl('/bonuses'), {
-        method: "POST",
+      const response = await fetch(buildUrl(`/bonuses/${bonus.id}`), {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "x-user-id": "admin",
           "x-user-role": "admin"
         },
         body: JSON.stringify({
-          user_id: selectedUser.id,
-          week_start_date: weekStartDate,
-          bonus_date: bonusDate,
           amount: parseFloat(bonusData.amount),
-          description: bonusData.description.trim()
+          description: bonusData.description.trim(),
+          bonus_date: bonusDate
         })
       });
       
@@ -124,26 +129,18 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
       }
       
       const data = await response.json();
-      
-      console.log('✅ Bonus created:', data);
-      
-      // Reset form
-      setBonusData({
-        day: '',
-        amount: '',
-        description: ''
-      });
+      console.log('✅ Bonus updated:', data);
       
       // Notify parent component
-      if (onBonusAdded) {
-        onBonusAdded(data.bonus || data);
+      if (onBonusUpdated) {
+        onBonusUpdated(data.bonus || data);
       }
       
       // Close modal
       onClose();
       
     } catch (err) {
-      console.error('❌ Error creating bonus:', err);
+      console.error('❌ Error updating bonus:', err);
       console.error('❌ Error details:', {
         status: err.response?.status,
         statusText: err.response?.statusText,
@@ -152,7 +149,7 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
         config: err.config
       });
       
-      let errorMessage = 'Failed to create bonus';
+      let errorMessage = 'Failed to update bonus';
       
       if (err.message?.includes('HTTP')) {
         // Server responded with error
@@ -180,119 +177,106 @@ const BonusModal = ({ isOpen, onClose, selectedUser, weekStartDate, onBonusAdded
     }
   };
 
-  if (!selectedUser) return null;
+  if (!bonus) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
-            🎁 Add Bonus for {selectedUser.full_name}
-          </DialogTitle>
+          <DialogTitle>Edit Bonus</DialogTitle>
           <DialogDescription>
-            Week starting: {new Date(weekStartDate).toLocaleDateString('el-GR')}
+            Modify bonus for {bonus.user_name} • Currently: €{bonus.amount}
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Day Selection */}
-          <div>
-            <Label htmlFor="day" className="text-sm font-medium">
-              Day of Week *
-            </Label>
+          <div className="space-y-2">
+            <Label htmlFor="day">Day of Week</Label>
             <select
               id="day"
               value={bonusData.day}
               onChange={(e) => handleInputChange('day', e.target.value)}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isSubmitting}
             >
-              <option value="">Select a day...</option>
-              {dayOptions.map(day => (
-                <option key={day.value} value={day.value}>
-                  {day.label}
+              <option value="">Select day...</option>
+              {dayOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Amount Input */}
-          <div>
-            <Label htmlFor="amount" className="text-sm font-medium">
-              Amount (€) * <span className="text-gray-500">(Max €200)</span>
-            </Label>
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount (€)</Label>
             <Input
               id="amount"
               type="number"
               min="0.01"
               max="200"
               step="0.01"
-              placeholder="0.00"
               value={bonusData.amount}
               onChange={(e) => handleInputChange('amount', e.target.value)}
+              placeholder="Enter amount (max €200)"
               disabled={isSubmitting}
-              className="mt-1"
+              className="w-full"
             />
           </div>
 
-          {/* Description Input */}
-          <div>
-            <Label htmlFor="description" className="text-sm font-medium">
-              Description * <span className="text-gray-500">(Min 10 characters)</span>
-            </Label>
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
             <textarea
               id="description"
-              placeholder="Why is this bonus being given? (e.g., Excellent performance, Overtime compensation, Special project completion)"
               value={bonusData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="Reason for this bonus (minimum 10 characters)"
               disabled={isSubmitting}
-              rows={3}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[80px] resize-vertical"
+              minLength={10}
+              maxLength={500}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              {bonusData.description.length}/10 characters minimum
-            </p>
+            <div className="text-sm text-gray-500">
+              {bonusData.description.length}/500 characters (minimum 10)
+            </div>
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">❌ {error}</p>
-            </div>
-          )}
-
-          {/* Bonus Preview */}
-          {bonusData.day && bonusData.amount && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Preview:</strong> €{bonusData.amount} bonus on{' '}
-                {dayOptions.find(d => d.value === bonusData.day)?.label} ({getBonusDate(bonusData.day)})
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-700 text-sm font-medium">
+                {error}
               </p>
             </div>
           )}
-        </form>
 
-        <DialogFooter className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !bonusData.day || !bonusData.amount || !bonusData.description}
-            className="bg-yellow-500 hover:bg-yellow-600 text-white"
-          >
-            {isSubmitting ? 'Adding...' : '🎁 Add Bonus'}
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                'Update Bonus'
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
 };
 
-export default BonusModal; 
+export default EditBonusModal; 
