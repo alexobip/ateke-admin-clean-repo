@@ -5,285 +5,198 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import API_CONFIG, { buildUrl } from "../config/api";
 import axios from "axios";
-
-const MOCK_PAYROLL = [
-  // Existing user
-
-  {
-    user_name: "Χρήστος Παπαδόπουλος",
-    user_id: "50.00.01.0001",
-        days_per_week: 5,
-    week_start: "2025-07-11",
-    salary_settings: [
-      {
-        effective_from: "2025-07-10",
-        salary_mon: 30,
-        salary_tue: 30,
-        salary_wed: 30,
-        salary_thu: 30,
-        salary_fri: 30,
-        salary_sat: 30,
-        salary_sun: 30,
-        overtime_mon: 9,
-        overtime_tue: 9,
-        overtime_wed: 9,
-        overtime_thu: 9,
-        overtime_fri: 9,
-        overtime_sat: 9,
-        overtime_sun: 9
-      },
-      {
-        effective_from: "2025-07-14",
-        salary_mon: 35,
-        salary_tue: 35,
-        salary_wed: 35,
-        salary_thu: 35,
-        salary_fri: 35,
-        salary_sat: 35,
-        salary_sun: 35,
-        overtime_mon: 12,
-        overtime_tue: 12,
-        overtime_wed: 12,
-        overtime_thu: 12,
-        overtime_fri: 12,
-        overtime_sat: 12,
-        overtime_sun: 12
-      }
-    ],
-    days: [
-      {
-        date: "2025-07-11",
-        day: "Παρασκευή",
-        norm_hours: 8,
-        worked_hours: 8,
-        overtime: 0
-      },
-      {
-        date: "2025-07-12",
-        day: "Σάββατο",
-        norm_hours: 0,
-        worked_hours: 5,
-        overtime: 5
-      },
-      {
-        date: "2025-07-13",
-        day: "Κυριακή",
-        norm_hours: 0,
-        worked_hours: 0,
-        overtime: 0
-      },
-      {
-        date: "2025-07-14",
-        day: "Δευτέρα",
-        norm_hours: 8,
-        worked_hours: 7,
-        overtime: 0
-      },
-      {
-        date: "2025-07-15",
-        day: "Τρίτη",
-        norm_hours: 8,
-        worked_hours: 9,
-        overtime: 1
-      }
-    ]
-  }
-,
-  // User 2
-  {
-    user_name: "Μαρία Κωνσταντίνου",
-    user_id: "50.00.01.0002",
-    user_type: "Εργατοτεχνίτης",
-    week_start: "2025-07-11",
-    salary_settings: [
-      {
-        effective_from: "2025-07-01",
-        salary_mon: 32,
-        salary_tue: 32,
-        salary_wed: 32,
-        salary_thu: 32,
-        salary_fri: 32,
-        salary_sat: 32,
-        salary_sun: 32,
-        overtime_mon: 10,
-        overtime_tue: 10,
-        overtime_wed: 10,
-        overtime_thu: 10,
-        overtime_fri: 10,
-        overtime_sat: 10,
-        overtime_sun: 10
-      }
-    ],
-    days: [
-      { date: "2025-07-11", day: "Παρασκευή", norm_hours: 8, worked_hours: 9, overtime: 1 },
-      { date: "2025-07-12", day: "Σάββατο", norm_hours: 0, worked_hours: 4, overtime: 4 }
-    ]
-  },
-  // User 3
-  {
-    user_name: "Νίκος Αντωνίου",
-    user_id: "50.00.01.0003",
-    user_type: "Εργατοτεχνίτης",
-    week_start: "2025-07-11",
-    salary_settings: [
-      {
-        effective_from: "2025-06-01",
-        salary_mon: 28,
-        salary_tue: 28,
-        salary_wed: 28,
-        salary_thu: 28,
-        salary_fri: 28,
-        salary_sat: 28,
-        salary_sun: 28,
-        overtime_mon: 8,
-        overtime_tue: 8,
-        overtime_wed: 8,
-        overtime_thu: 8,
-        overtime_fri: 8,
-        overtime_sat: 8,
-        overtime_sun: 8
-      }
-    ],
-    days: [
-      { date: "2025-07-14", day: "Δευτέρα", norm_hours: 8, worked_hours: 8, overtime: 0 },
-      { date: "2025-07-15", day: "Τρίτη", norm_hours: 8, worked_hours: 10, overtime: 2 }
-    ]
-  },
-  // User 4
-  {
-    user_name: "Ελένη Σταμάτη",
-    user_id: "50.00.01.0004",
-    user_type: "Εργατοτεχνίτης",
-    week_start: "2025-07-11",
-    salary_settings: [
-      {
-        effective_from: "2025-07-05",
-        salary_mon: 31,
-        salary_tue: 31,
-        salary_wed: 31,
-        salary_thu: 31,
-        salary_fri: 31,
-        salary_sat: 31,
-        salary_sun: 31,
-        overtime_mon: 11,
-        overtime_tue: 11,
-        overtime_wed: 11,
-        overtime_thu: 11,
-        overtime_fri: 11,
-        overtime_sat: 11,
-        overtime_sun: 11
-      }
-    ],
-    days: [
-      { date: "2025-07-11", day: "Παρασκευή", norm_hours: 8, worked_hours: 6, overtime: 0 },
-      { date: "2025-07-12", day: "Σάββατο", norm_hours: 0, worked_hours: 3, overtime: 3 }
-    ]
-  }
-];
+import dayjs from "dayjs";
 
 function getEffectiveSalary(salarySettings, dateStr) {
   const date = new Date(dateStr);
   const applicable = salarySettings
     .filter(s => new Date(s.effective_from) <= date)
     .sort((a, b) => new Date(b.effective_from) - new Date(a.effective_from))[0];
-  return applicable;
+  
+  return applicable || salarySettings[salarySettings.length - 1] || {};
 }
 
-function getDayKey(dayName) {
+function getDayColumn(dayName) {
   const map = {
-    "Δευτέρα": "mon",
-    "Τρίτη": "tue",
-    "Τετάρτη": "wed",
-    "Πέμπτη": "thu",
-    "Παρασκευή": "fri",
-    "Σάββατο": "sat",
-    "Κυριακή": "sun"
+    'Δευτέρα': 'mon',
+    'Τρίτη': 'tue', 
+    'Τετάρτη': 'wed',
+    'Πέμπτη': 'thu',
+    'Παρασκευή': 'fri',
+    'Σάββατο': 'sat',
+    'Κυριακή': 'sun'
   };
   return map[dayName];
 }
 
-const WEEKDAYS = [
-  "Δευτέρα",
-  "Τρίτη",
-  "Τετάρτη",
-  "Πέμπτη",
-  "Παρασκευή",
-  "Σάββατο",
-  "Κυριακή"
-];
-
-
-
+const WEEKDAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο", "Κυριακή"];
 
 export default function PayrollReportPanel() {
   // State management
   const [payrollData, setPayrollData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedWeek, setSelectedWeek] = useState("");
-  const [useMockData, setUseMockData] = useState(true); // Toggle for testing
+  const [timeEntries, setTimeEntries] = useState([]);
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+  const [weekStart, setWeekStart] = useState(null);
+  const [weekStartDay] = useState(4); // Thursday (same as TimeEntries)
   
-  const weekStartDay = "Πέμπτη";
+  // Calculate years from available weeks
+  const yearsWithData = Array.from(
+    new Set(availableWeeks.map(ws => ws.year()))
+  ).sort((a, b) => b - a);
+  const [selectedYear, setSelectedYear] = useState(() =>
+    yearsWithData.length > 0 ? yearsWithData[0] : dayjs().year()
+  );
+
+  // Fetch time entries to get available periods (same as TimeEntriesPanel)
+  const fetchTimeEntries = async () => {
+    try {
+      const res = await fetch(buildUrl(API_CONFIG.endpoints.timeEntries));
+      const data = await res.json();
+      setTimeEntries(data);
+    } catch (error) {
+      console.error("Error fetching time entries for periods:", error);
+    }
+  };
+
+  // Get week start date from any date (same logic as TimeEntriesPanel)
+  const getWeekStartFromDate = (dateStr, startDay) => {
+    const date = dayjs(dateStr);
+    const day = date.day();
+    const offset = (7 + day - startDay) % 7;
+    return date.subtract(offset, "day").startOf("day");
+  };
+
+  // Fetch time entries on mount to populate available weeks
+  useEffect(() => {
+    fetchTimeEntries();
+  }, []);
+
+  // Update available weeks when time entries change
+  useEffect(() => {
+    if (timeEntries.length > 0) {
+      const weekStarts = Array.from(
+        new Set(
+          timeEntries.map((e) =>
+            getWeekStartFromDate(e.clock_in_time, weekStartDay).format("YYYY-MM-DD")
+          )
+        )
+      )
+        .map((d) => dayjs(d))
+        .sort((a, b) => b.unix() - a.unix());
+
+      setAvailableWeeks(weekStarts);
+      if (!weekStart && weekStarts.length > 0) {
+        setWeekStart(weekStarts[0]);
+      }
+    }
+  }, [timeEntries, weekStartDay]);
+
+  // Transform backend data to match frontend expectations
+  function transformBackendData(backendData, startDate, endDate) {
+    console.log('🔄 Transforming backend data:', { backendData, startDate, endDate });
+    
+    if (!backendData || !Array.isArray(backendData)) return [];
+    
+    return backendData.map(employee => {
+      console.log('🔄 Processing employee:', employee.user_name);
+      
+      // Validate that backend sends complete data
+      if (!employee.salary_settings || !Array.isArray(employee.salary_settings)) {
+        console.error('❌ Backend missing salary_settings for employee:', employee.user_name);
+        return null; // Skip this employee
+      }
+      
+      if (!employee.days || !Array.isArray(employee.days)) {
+        console.error('❌ Backend missing days data for employee:', employee.user_name);
+        return null; // Skip this employee
+      }
+
+      console.log('✅ Using REAL backend data for:', employee.user_name);
+      return {
+        user_name: employee.user_name,
+        user_id: employee.user_id,
+        user_type: employee.user_type || "Unknown",
+        week_start: employee.week_start,
+        salary_settings: employee.salary_settings, // REAL backend data only
+        days: employee.days // REAL backend data only
+      };
+    }).filter(Boolean); // Remove null entries
+  }
 
   // Function to fetch real payroll data
-  const fetchPayrollData = async (year, weekStart) => {
+  const fetchPayrollData = async (weekStartDate) => {
+    if (!weekStartDate) return;
+    
+    console.log('🔍 Fetching payroll data for week starting:', weekStartDate.format('YYYY-MM-DD'));
     setLoading(true);
     setError(null);
     
     try {
+      // Calculate week range (7 days from start)
+      const start_date = weekStartDate.format('YYYY-MM-DD');
+      const end_date = weekStartDate.add(6, 'day').format('YYYY-MM-DD');
+      
+      console.log('🔍 Fetching payroll data from', start_date, 'to', end_date);
+      
       const response = await axios.get(buildUrl(API_CONFIG.endpoints.payrollReport), {
         params: {
-          year: year,
-          week_start: weekStart,
-          week_start_day: weekStartDay
+          start_date: start_date,
+          end_date: end_date
         }
       });
       
-      setPayrollData(response.data);
+      console.log('✅ Backend response:', response.data);
+      console.log('📊 First employee sample:', response.data.employees?.[0]);
+      console.log('💰 Backend salary_settings:', response.data.employees?.[0]?.salary_settings);
+      
+      // Transform backend data to match frontend expectations
+      const transformedData = transformBackendData(response.data.employees || response.data, start_date, end_date);
+      console.log('🔄 Transformed data sample:', transformedData[0]);
+      setPayrollData(transformedData);
+      
     } catch (err) {
       console.error("Error fetching payroll data:", err);
-      setError("Failed to load payroll data. Using mock data as fallback.");
-      setPayrollData(MOCK_PAYROLL); // Fallback to mock data
+      setError("Failed to load payroll data. Please try again.");
+      setPayrollData([]); // Clear data on error
     } finally {
       setLoading(false);
     }
   };
 
-  // Use mock data initially, but allow real data fetching
-  const currentData = useMockData ? MOCK_PAYROLL : payrollData;
+  // Use payroll data directly
+  const currentData = payrollData;
 
-  // Collect unique years from time entries
-  const allDates = currentData.flatMap(user => user.days.map(d => new Date(d.date)));
-  const uniqueYears = [...new Set(allDates.map(d => d.getFullYear()))];
-  const sortedYears = uniqueYears.sort((a, b) => b - a);
+  // Filter available weeks by selected year
+  const weeksForYear = availableWeeks.filter(week => week.year() === selectedYear);
 
-  // Group entries into weeks based on selected start day
-  const startDayIndex = WEEKDAYS.indexOf(weekStartDay);
-  const getWeekRange = (date) => {
-    const d = new Date(date);
-    const dayIndex = (d.getDay() + 6) % 7; // Monday = 0 ... Sunday = 6
-    const offset = (dayIndex - startDayIndex + 7) % 7;
-    const start = new Date(d);
-    start.setDate(d.getDate() - offset);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return `${start.toLocaleDateString('el-GR')} - ${end.toLocaleDateString('el-GR')}`;
+  // Get custom week days starting from selected week start (like TimeEntriesPanel)
+  const getCustomWeekDays = () => {
+    if (!weekStart) return [];
+    return Array(7).fill(null).map((_, i) => weekStart.add(i, "day"));
   };
 
-  const weekRangesSet = new Set();
-  allDates.forEach(d => weekRangesSet.add(getWeekRange(d)));
-  const weekRanges = Array.from(weekRangesSet).sort((a, b) => {
-    const aDate = new Date(a.split(" - ")[0].split("/").reverse().join("-"));
-    const bDate = new Date(b.split(" - ")[0].split("/").reverse().join("-"));
-    return bDate - aDate;
-  });
-  // Initialize with first available week on component mount
+  // Get Greek day name from dayjs date
+  const getGreekDayName = (dayjsDate) => {
+    const dayNames = {
+      0: 'Κυριακή',
+      1: 'Δευτέρα', 
+      2: 'Τρίτη',
+      3: 'Τετάρτη',
+      4: 'Πέμπτη',
+      5: 'Παρασκευή',
+      6: 'Σάββατο'
+    };
+    return dayNames[dayjsDate.day()];
+  };
+
+  // Auto-fetch data when weekStart changes
   useEffect(() => {
-    if (weekRanges.length > 0 && !selectedWeek) {
-      setSelectedWeek(weekRanges[0]);
+    if (weekStart) {
+      fetchPayrollData(weekStart);
     }
-  }, [weekRanges, selectedWeek]);
+  }, [weekStart]);
 
   return (
     <Card className="max-w-6xl mx-auto my-8">
@@ -296,41 +209,18 @@ export default function PayrollReportPanel() {
         </div>
         
         {/* Data Source Toggle */}
-        <div className="w-48">
-          <label className="text-sm mb-1 text-gray-500 block">Data Source</label>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={useMockData ? "default" : "outline"}
-              onClick={() => setUseMockData(true)}
-            >
-              Mock Data
-            </Button>
-            <Button
-              size="sm"
-              variant={!useMockData ? "default" : "outline"}
-              onClick={() => {
-                setUseMockData(false);
-                if (selectedWeek) {
-                  fetchPayrollData(selectedYear, selectedWeek);
-                }
-              }}
-            >
-              Real Data
-            </Button>
-          </div>
-        </div>
+
 
         <div className="w-64">
           <label className="text-sm mb-1 text-gray-500 block">Αρχική ημέρα εβδομάδας</label>
           <select disabled defaultValue={weekStartDay} className="w-full bg-gray-100 text-gray-600 border border-gray-300 rounded px-2 py-1 cursor-not-allowed">
-            <option>Δευτέρα</option>
-            <option>Τρίτη</option>
-            <option>Τετάρτη</option>
-            <option>Πέμπτη</option>
-            <option>Παρασκευή</option>
-            <option>Σάββατο</option>
-            <option>Κυριακή</option>
+            <option value="1">Δευτέρα</option>
+            <option value="2">Τρίτη</option>
+            <option value="3">Τετάρτη</option>
+            <option value="4">Πέμπτη</option>
+            <option value="5">Παρασκευή</option>
+            <option value="6">Σάββατο</option>
+            <option value="0">Κυριακή</option>
           </select>
         </div>
         
@@ -339,9 +229,18 @@ export default function PayrollReportPanel() {
           <select 
             className="w-full bg-white border border-gray-300 rounded px-2 py-1"
             value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            onChange={(e) => {
+              const newYear = parseInt(e.target.value);
+              setSelectedYear(newYear);
+              
+              // Set first week of selected year
+              const weeksForNewYear = availableWeeks.filter(week => week.year() === newYear);
+              if (weeksForNewYear.length > 0) {
+                setWeekStart(weeksForNewYear[0]);
+              }
+            }}
           >
-            {sortedYears.map((y) => (
+            {yearsWithData.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
@@ -351,23 +250,26 @@ export default function PayrollReportPanel() {
           <label className="text-sm mb-1 text-gray-500 block">Εβδομάδα</label>
           <select 
             className="w-full bg-white border border-gray-300 rounded px-2 py-1"
-            value={selectedWeek}
+            value={weekStart ? weekStart.format('YYYY-MM-DD') : ''}
             onChange={(e) => {
-              setSelectedWeek(e.target.value);
-              if (!useMockData) {
-                fetchPayrollData(selectedYear, e.target.value);
+              const selectedWeekStart = availableWeeks.find(week => 
+                week.format('YYYY-MM-DD') === e.target.value
+              );
+              if (selectedWeekStart) {
+                setWeekStart(selectedWeekStart);
               }
             }}
           >
-            {weekRanges.map((r, i) => (
-              <option key={i} value={r}>{r}</option>
+            {weeksForYear.map((week) => (
+              <option key={week.format('YYYY-MM-DD')} value={week.format('YYYY-MM-DD')}>
+                {week.format('DD/MM/YYYY')} - {week.add(6, 'day').format('DD/MM/YYYY')}
+              </option>
             ))}
           </select>
         </div>
       </div>
 
-
-              <CardContent>
+      <CardContent>
         {loading ? (
           <div className="flex justify-center items-center py-8">
             <div className="text-lg text-gray-600">Loading payroll data...</div>
@@ -378,13 +280,16 @@ export default function PayrollReportPanel() {
           </div>
         ) : (
           currentData.map((user) => {
-          const dayMap = Object.fromEntries(user.days.map(d => [d.day, d]));
+          // Create day map using dates instead of day names
+          const dayMap = Object.fromEntries(user.days.map(d => [d.date, d]));
+          const weekDays = getCustomWeekDays();
 
-          const totalWeek = WEEKDAYS.reduce((sum, day) => {
-            const d = dayMap[day];
+          const totalWeek = weekDays.reduce((sum, dayjs_date) => {
+            const dateStr = dayjs_date.format('YYYY-MM-DD');
+            const d = dayMap[dateStr];
             if (!d) return sum;
             const salary = getEffectiveSalary(user.salary_settings, d.date);
-            const dayKey = getDayKey(day);
+            const dayKey = getDayColumn(d.day);
             const daily_salary = salary[`salary_${dayKey}`] || 0;
             const overtime_rate = salary[`overtime_${dayKey}`] || 0;
             const isEligible = d.norm_hours > 0 && d.worked_hours >= d.norm_hours;
@@ -413,37 +318,46 @@ export default function PayrollReportPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {WEEKDAYS.map((day, idx) => {
-                    const d = dayMap[day];
+                  {weekDays.map((dayjs_date, idx) => {
+                    const dateStr = dayjs_date.format('YYYY-MM-DD');
+                    const dayNameGreek = getGreekDayName(dayjs_date);
+                    const d = dayMap[dateStr];
+                    
                     if (!d) {
                       return (
                         <TableRow key={idx} className="h-10">
-                          <TableCell>{day}</TableCell>
-                          <TableCell colSpan={8} className="text-center text-gray-400">—</TableCell>
+                          <TableCell>{dayNameGreek}</TableCell>
+                          <TableCell>{dayjs_date.format('DD/MM/YYYY')}</TableCell>
+                          <TableCell colSpan={7} className="text-center text-gray-400">—</TableCell>
                         </TableRow>
                       );
                     }
+                    
                     const salary = getEffectiveSalary(user.salary_settings, d.date);
-                    const dayKey = getDayKey(d.day);
+                    const dayKey = getDayColumn(d.day);
                     const daily_salary = salary[`salary_${dayKey}`] || 0;
                     const overtime_rate = salary[`overtime_${dayKey}`] || 0;
                     const countsTowardWorkWeek = true; // since we allow any day
                     const underworked = countsTowardWorkWeek && d.worked_hours < d.norm_hours;
+                    const severelyUnderworked = underworked && (d.norm_hours - d.worked_hours) >= 1.0; // 1+ hours less
                     const isEligibleForOvertime = d.norm_hours > 0 && d.worked_hours >= d.norm_hours;
                     const actualOvertime = isEligibleForOvertime ? d.overtime : 0;
                     const overtime_pay = actualOvertime * overtime_rate;
                     const total_day = daily_salary + overtime_pay;
                     
+                    // Color logic: Deep red for 1+ hours under, light red for any under
+                    const rowClass = severelyUnderworked ? "bg-red-600 text-white" : (underworked ? "bg-red-50" : "");
+                    
                     return (
-                      <TableRow key={idx} className={`h-10 ${underworked ? "bg-red-50" : ""}`}>
-                        <TableCell>{d.day}</TableCell>
-                        <TableCell>{new Date(d.date).toLocaleDateString('el-GR')}</TableCell>
-                        <TableCell>{d.norm_hours}</TableCell>
+                      <TableRow key={idx} className={`h-10 ${rowClass}`}>
+                        <TableCell>{dayNameGreek}</TableCell>
+                        <TableCell>{dayjs_date.format('DD/MM/YYYY')}</TableCell>
+                        <TableCell>{d.norm_hours.toFixed(1)}</TableCell>
                         <TableCell>
-                          {d.worked_hours}
+                          {d.worked_hours.toFixed(1)}
                           {underworked && <Badge variant="destructive" className="ml-2">Λιγότερο</Badge>}
                         </TableCell>
-                        <TableCell>{actualOvertime}</TableCell>
+                        <TableCell>{actualOvertime.toFixed(1)}</TableCell>
                         <TableCell>{daily_salary.toFixed(2)}</TableCell>
                         <TableCell>{overtime_rate.toFixed(2)}</TableCell>
                         <TableCell>{overtime_pay.toFixed(2)}</TableCell>

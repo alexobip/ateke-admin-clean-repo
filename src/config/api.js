@@ -38,7 +38,10 @@ const API_CONFIG = {
     groupsApi: "/api/groups",
     
     // Payroll management
-    payrollReport: "/payroll-report"
+    payrollReport: "/payroll-report",
+    
+    // Bonus management
+    bonuses: "/bonuses"
   }
 };
 

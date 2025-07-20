@@ -26,8 +26,17 @@ export function DialogHeader({ children }) {
   return <div className="mb-4">{children}</div>;
 }
 
-export function DialogTitle({ children }) {
-  return <h2 className="text-lg font-semibold">{children}</h2>;
+export const DialogTitle = DialogPrimitive.Title;
+
+export function DialogDescription({ children, className, ...props }) {
+  return (
+    <DialogPrimitive.Description 
+      className={`text-sm text-gray-600 ${className}`}
+      {...props}
+    >
+      {children}
+    </DialogPrimitive.Description>
+  );
 }
 
 export function DialogFooter({ children }) {

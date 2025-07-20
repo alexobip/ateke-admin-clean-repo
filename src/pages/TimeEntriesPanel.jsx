@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import API_CONFIG, { buildUrl } from "../config/api";
+import BonusModal from "../components/BonusModal";
+import BonusTable from "../components/BonusTable";
 
 
 dayjs.extend(isoWeek);
@@ -57,6 +59,14 @@ export default function TimeEntriesPanel() {
   const [isAllExpanded, setIsAllExpanded] = useState(false);
   const [approvalFilter, setApprovalFilter] = useState("all"); // 'all' | 'fullyApproved' | 'notFullyApproved'
   const [showSummary, setShowSummary] = useState(false);
+
+  // Bonus management state
+  const [bonusModal, setBonusModal] = useState({
+    isOpen: false,
+    selectedUser: null
+  });
+  const [userBonuses, setUserBonuses] = useState({}); // Store bonuses by user ID
+  const currentUserRole = 'admin'; // TODO: Get from your auth system
 
 
   const [addModal, setAddModal] = useState({ open: false, user: null, date: null });
@@ -95,6 +105,17 @@ export default function TimeEntriesPanel() {
       }
     }
   }, [entries, weekStartDay]);
+
+  // Fetch bonuses when week changes
+  // useEffect(() => {
+  //   if (weekStart && users.length > 0) {
+  //     const weekStartDate = weekStart.format('YYYY-MM-DD');
+  //     // Fetch bonuses for all users in the current week
+  //     users.forEach(user => {
+  //       fetchUserBonuses(user.id, weekStartDate);
+  //     });
+  //   }
+  // }, [weekStart, users]);
 
   useEffect(() => {
     fetch(buildUrl(API_CONFIG.endpoints.projects))
@@ -261,6 +282,45 @@ export default function TimeEntriesPanel() {
 
   const isDayExpanded = (userId, dayIndex) => {
     return expandedDays[`${userId}-${dayIndex}`] || false;
+  };
+
+  // Bonus management functions
+  const openBonusModal = (user) => {
+    setBonusModal({
+      isOpen: true,
+      selectedUser: user
+    });
+  };
+
+  const closeBonusModal = () => {
+    setBonusModal({
+      isOpen: false,
+      selectedUser: null
+    });
+  };
+
+  // Skip API calls to start - just keep them disabled for now
+  const fetchUserBonuses = async (userId, weekStartDate) => {
+    console.log('fetchUserBonuses called but API disabled for testing:', userId, weekStartDate);
+    // Temporarily disabled to avoid API errors during testing
+  };
+
+  const handleBonusAdded = (newBonus) => {
+    // Add the new bonus to the user's bonus list
+    setUserBonuses(prev => ({
+      ...prev,
+      [newBonus.user_id]: [...(prev[newBonus.user_id] || []), newBonus]
+    }));
+  };
+
+  const handleApproveBonus = async (bonusId, status) => {
+    console.log('handleApproveBonus called but API disabled for testing:', bonusId, status);
+    // Temporarily disabled to avoid API errors during testing
+  };
+
+  const handleEditBonus = (bonus) => {
+    // TODO: Implement edit functionality
+    console.log('Edit bonus:', bonus);
   };
 
   const saveAdd = async () => {
@@ -507,11 +567,25 @@ export default function TimeEntriesPanel() {
     className="bg-gray-200 px-3 py-1 rounded text-sm mt-6"
     onClick={() => {
       if (isAllExpanded) {
+        // Collapse All: Close all users and all days
         setExpandedUsers([]);
+        setExpandedDays({});
         setIsAllExpanded(false);
       } else {
+        // Expand All: Open all users and all their days
         const allIds = users.map(u => u.id);
         setExpandedUsers(allIds);
+        
+        // Create expanded days object for all user-day combinations
+        const allExpandedDays = {};
+        users.forEach(user => {
+          // For each day in the week (7 days)
+          for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const key = `${user.id}-${dayIndex}`;
+            allExpandedDays[key] = true;
+          }
+        });
+        setExpandedDays(allExpandedDays);
         setIsAllExpanded(true);
       }
     }}
@@ -568,6 +642,18 @@ export default function TimeEntriesPanel() {
                     {expandedUsers.includes(user.id) ? "−" : "+"}
                   </button>
                   {user.name}
+                  
+                  {/* Bonus Button - Admin Only */}
+                  {currentUserRole === 'admin' && (
+                    <button
+                      onClick={() => openBonusModal(user)}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm ml-4"
+                      title="Add bonus for this user"
+                    >
+                      🎁 Bonus
+                    </button>
+                  )}
+                  
                   <span className="ml-2 flex gap-1">
                     {weekDays.map((day, idx) => (
                       <button
@@ -689,12 +775,29 @@ export default function TimeEntriesPanel() {
                     })}
                   </div>
                 )}
+                
+                {/* Bonus Table - Show after time entries */}
+                <BonusTable 
+                  bonuses={userBonuses[user.id] || []}
+                  onApproveBonus={handleApproveBonus}
+                  onEditBonus={handleEditBonus}
+                  currentUserRole={currentUserRole}
+                />
 
               </CardContent>
             </Card>
           ))}
         </div>
       ))}
+
+      {/* Bonus Modal */}
+      <BonusModal
+        isOpen={bonusModal.isOpen}
+        onClose={closeBonusModal}
+        selectedUser={bonusModal.selectedUser}
+        weekStartDate={weekStart?.format('YYYY-MM-DD')}
+        onBonusAdded={handleBonusAdded}
+      />
 
       {editEntry && (
         <Dialog open onOpenChange={closeModal}>

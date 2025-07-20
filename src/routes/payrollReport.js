@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const pool = require('../db');
 
 // Helper function to get Greek day name
 const getGreekDayName = (date) => {
@@ -16,58 +16,30 @@ const getGreekDayName = (date) => {
   return dayNames[date.getDay()];
 };
 
-// Helper function to calculate worked hours and overtime
-const calculateHoursAndOvertime = (clockIn, clockOut, normHours = 8) => {
-  if (!clockIn || !clockOut) {
-    return { worked_hours: 0, overtime: 0 };
-  }
-  
-  const start = new Date(clockIn);
-  const end = new Date(clockOut);
-  const totalMinutes = (end - start) / (1000 * 60);
-  const worked_hours = Math.round((totalMinutes / 60) * 100) / 100; // Round to 2 decimals
-  
-  const overtime = Math.max(0, worked_hours - normHours);
-  
-  return { worked_hours, overtime };
-};
-
-// Helper function to get week range based on start day
-const getWeekDateRange = (weekStartString) => {
-  // Parse the week range string "11/07/2025 - 17/07/2025"
-  const [startStr, endStr] = weekStartString.split(' - ');
-  const [startDay, startMonth, startYear] = startStr.split('/');
-  const [endDay, endMonth, endYear] = endStr.split('/');
-  
-  const weekStart = new Date(startYear, startMonth - 1, startDay);
-  const weekEnd = new Date(endYear, endMonth - 1, endDay);
-  
-  return { weekStart, weekEnd };
-};
-
-// GET payroll report
+// GET /payroll-report
 router.get('/', async (req, res) => {
+  console.log('📊 Payroll report route hit');
+  
+  const { start_date, end_date } = req.query;
+
+  // Validate required parameters
+  if (!start_date || !end_date) {
+    return res.status(400).json({
+      success: false,
+      message: 'start_date and end_date are required (YYYY-MM-DD format)'
+    });
+  }
+
   try {
-    const { year, week_start, week_start_day = 'Πέμπτη' } = req.query;
-    
-    if (!year || !week_start) {
-      return res.status(400).json({ 
-        error: 'Year and week_start parameters are required' 
-      });
-    }
+    console.log(`🔍 Fetching payroll data for ${start_date} to ${end_date}`);
 
-    // Parse week range
-    const { weekStart, weekEnd } = getWeekDateRange(week_start, week_start_day);
-    
-    console.log(`Fetching payroll data for ${weekStart.toISOString()} to ${weekEnd.toISOString()}`);
-
-    // Get all users with their basic info
+    // Get all active users with their basic info
     const usersQuery = `
       SELECT 
         u.id,
-        u.full_name,
+        u.full_name as user_name,
         u.user_type_id,
-        ut.title as user_type_title,
+        ut.title as user_type,
         u.department_id,
         d.name as department_name
       FROM users u
@@ -76,13 +48,13 @@ router.get('/', async (req, res) => {
       WHERE u.is_active = true
     `;
     
-    const usersResult = await db.query(usersQuery);
+    const usersResult = await pool.query(usersQuery);
     const users = usersResult.rows;
 
     const payrollData = [];
 
     for (const user of users) {
-      // Get user's salary settings (all that could apply to this week)
+      // Get user's salary settings (all that could apply to this period)
       const salaryQuery = `
         SELECT *
         FROM user_salary_settings 
@@ -91,10 +63,10 @@ router.get('/', async (req, res) => {
         ORDER BY effective_from DESC
       `;
       
-      const salaryResult = await db.query(salaryQuery, [user.id, weekEnd]);
+      const salaryResult = await pool.query(salaryQuery, [user.id, end_date]);
       const salarySettings = salaryResult.rows;
 
-      // Get time entries for this user in the selected week
+      // Get time entries for this user in the selected period
       const timeEntriesQuery = `
         SELECT 
           te.*,
@@ -108,15 +80,15 @@ router.get('/', async (req, res) => {
         ORDER BY te.clock_in_time
       `;
       
-      const timeEntriesResult = await db.query(timeEntriesQuery, [
+      const timeEntriesResult = await pool.query(timeEntriesQuery, [
         user.id, 
-        weekStart.toISOString().split('T')[0],
-        weekEnd.toISOString().split('T')[0]
+        start_date,
+        end_date
       ]);
       
       const timeEntries = timeEntriesResult.rows;
 
-      // Skip users with no time entries for this week
+      // Skip users with no time entries for this period
       if (timeEntries.length === 0) {
         continue;
       }
@@ -138,14 +110,13 @@ router.get('/', async (req, res) => {
           };
         }
         
-        const { worked_hours } = calculateHoursAndOvertime(
-          entry.clock_in_time, 
-          entry.clock_out_time, 
-          0 // Don't calculate overtime per entry, we'll do it per day
-        );
+        // Calculate hours worked for this entry
+        const clockIn = new Date(entry.clock_in_time);
+        const clockOut = new Date(entry.clock_out_time);
+        const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
         
         dailyEntries[dateKey].entries.push(entry);
-        dailyEntries[dateKey].total_worked_hours += worked_hours;
+        dailyEntries[dateKey].total_worked_hours += hoursWorked;
       });
 
       // Convert daily entries to the expected format
@@ -165,28 +136,27 @@ router.get('/', async (req, res) => {
           date: dayData.date,
           day: dayData.day,
           norm_hours: normHours,
-          worked_hours: Math.round(dayData.total_worked_hours * 100) / 100,
-          overtime: Math.round(actualOvertime * 100) / 100
+          worked_hours: Math.round(dayData.total_worked_hours * 10) / 10, // Round to 1 decimal
+          overtime: Math.round(actualOvertime * 10) / 10 // Round to 1 decimal
         };
       });
 
       // Add user to payroll data
       payrollData.push({
-        user_name: user.full_name,
+        user_name: user.user_name,
         user_id: user.id,
-        user_type: user.user_type_title,
-        days_per_week: 5, // Default, could be made configurable
-        week_start: weekStart.toISOString().split('T')[0],
-        salary_settings: salarySettings,
-        days: days
+        user_type: user.user_type,
+        week_start: start_date,
+        salary_settings: salarySettings, // Real database records with effective_from
+        days: days // Real time entry data
       });
     }
 
-    console.log(`Returning payroll data for ${payrollData.length} users`);
+    console.log(`✅ Returning payroll data for ${payrollData.length} users`);
     res.json(payrollData);
 
   } catch (err) {
-    console.error('Error fetching payroll report:', err);
+    console.error('❌ Error fetching payroll report:', err);
     res.status(500).json({ 
       error: 'Internal server error',
       message: err.message 
