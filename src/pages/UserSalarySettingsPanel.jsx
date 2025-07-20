@@ -11,6 +11,7 @@
     SelectValue,
   } from "@/components/ui/select";
   import { Checkbox } from "@/components/ui/checkbox";
+  import API_CONFIG, { buildUrl } from "../config/api";
 
   export default function UserSalarySettingsPanel() {
     const [users, setUsers] = useState([]);
@@ -83,14 +84,14 @@
 
 
     useEffect(() => {
-      axios.get("/api/user-types").then(res => setUserTypes(res.data || []));
-      axios.get("/api/departments").then(res => setDepartments(res.data || []));
-      axios.get("/api/groups").then(res => setGroups(res.data || []));
+      axios.get(buildUrl(API_CONFIG.endpoints.userTypesApi)).then(res => setUserTypes(res.data || []));
+      axios.get(buildUrl(API_CONFIG.endpoints.departmentsApi)).then(res => setDepartments(res.data || []));
+      axios.get(buildUrl(API_CONFIG.endpoints.groupsApi)).then(res => setGroups(res.data || []));
     
     }, []);
 
     useEffect(() => {
-  axios.get("http://localhost:3000/webusers").then(res => setUsers(res.data || []));
+  axios.get(buildUrl(API_CONFIG.endpoints.users)).then(res => setUsers(res.data || []));
 }, []);
 
 
@@ -124,7 +125,7 @@
 
 useEffect(() => {
   if (selectedUserId) {
-    axios.get(`/user-salary-settings?user_id=${selectedUserId}`)
+    axios.get(buildUrl(`${API_CONFIG.endpoints.salarySettings}?user_id=${selectedUserId}`))
       .then(res => {
         const history = res.data || [];
         setUserSalaryHistory(history);
@@ -222,11 +223,11 @@ if (duplicate) {
 }
 
       try {
-        await axios.post("/user-salary-settings", data);
+        await axios.post(buildUrl(API_CONFIG.endpoints.salarySettings), data);
         alert("Salary setting saved.");
 
         // Re-fetch salary history for the selected user
-        const res = await axios.get(`/user-salary-settings?user_id=${selectedUserId}`);
+        const res = await axios.get(buildUrl(`${API_CONFIG.endpoints.salarySettings}?user_id=${selectedUserId}`));
         setUserSalaryHistory(res.data || []);
 
         // Clear form fields

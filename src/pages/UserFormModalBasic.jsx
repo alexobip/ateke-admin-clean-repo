@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../components/ui/Modal";
 import axios from "axios";
-
-const API_BASE_URL = "http://localhost:3000";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 const UserFormModalBasic = ({ isOpen, onClose, onSubmit, initialData = {} }) => {
   const [formData, setFormData] = useState({
@@ -37,10 +36,10 @@ const UserFormModalBasic = ({ isOpen, onClose, onSubmit, initialData = {} }) => 
         user_type_id: initialData?.user_type_id || ""
       });
 
-      axios.get(`${API_BASE_URL}/departments`).then((res) => setDepartments(res.data));
-      axios.get(`${API_BASE_URL}/groups`).then((res) => setGroups(res.data));
-      axios.get(`${API_BASE_URL}/roles`).then((res) => setRoles(res.data));
-      axios.get(`${API_BASE_URL}/webusers/usertypes`).then((res) => setUserTypes(res.data));
+      axios.get(buildUrl(API_CONFIG.endpoints.departments)).then((res) => setDepartments(res.data));
+      axios.get(buildUrl(API_CONFIG.endpoints.groups)).then((res) => setGroups(res.data));
+      axios.get(buildUrl(API_CONFIG.endpoints.roles)).then((res) => setRoles(res.data));
+      axios.get(buildUrl(API_CONFIG.endpoints.userTypes)).then((res) => setUserTypes(res.data));
     }
   }, [isOpen, initialData]);
 

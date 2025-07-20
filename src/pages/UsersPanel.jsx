@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import UserFormModal from "./UserFormModalBasic";
 import dayjs from "dayjs";
-
-const API_BASE_URL = "http://localhost:3000";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 
 export default function UsersPanel() {
@@ -43,7 +42,7 @@ export default function UsersPanel() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/webusers`);
+      const res = await axios.get(buildUrl(API_CONFIG.endpoints.users));
       setUsers(res.data);
       setFilteredUsers(res.data);
     } catch (error) {
@@ -77,10 +76,10 @@ export default function UsersPanel() {
       let successMessage;
       
       if (editUser) {
-        await axios.put(`${API_BASE_URL}/webusers/${userData.id}`, userData);
+        await axios.put(buildUrl(`${API_CONFIG.endpoints.users}/${userData.id}`), userData);
         successMessage = "User updated successfully!";
       } else {
-        await axios.post(`${API_BASE_URL}/webusers`, userData);
+        await axios.post(buildUrl(API_CONFIG.endpoints.users), userData);
         successMessage = "User created successfully!";
       }
       

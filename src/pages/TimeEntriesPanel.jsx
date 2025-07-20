@@ -4,12 +4,7 @@ import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import duration from "dayjs/plugin/duration";
 import isBetween from "dayjs/plugin/isBetween";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
+// Accordion components removed - using custom expand/collapse implementation
 import {
   Card,
   CardContent,
@@ -33,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 
 dayjs.extend(isoWeek);
@@ -57,6 +53,7 @@ export default function TimeEntriesPanel() {
   const [projects, setProjects] = useState([]);
   const [projectFilter, setProjectFilter] = useState("");
   const [expandedUsers, setExpandedUsers] = useState([]);
+  const [expandedDays, setExpandedDays] = useState({}); // Track individual day expansions: {userId-dayIndex: true/false}
   const [isAllExpanded, setIsAllExpanded] = useState(false);
   const [approvalFilter, setApprovalFilter] = useState("all"); // 'all' | 'fullyApproved' | 'notFullyApproved'
   const [showSummary, setShowSummary] = useState(false);
@@ -100,14 +97,14 @@ export default function TimeEntriesPanel() {
   }, [entries, weekStartDay]);
 
   useEffect(() => {
-    fetch("http://localhost:3000/webProjects")
+    fetch(buildUrl(API_CONFIG.endpoints.projects))
       .then(res => res.json())
       .then(setProjects);
     
   }, []);
 
   const fetchEntries = async () => {
-    const res = await fetch(`http://localhost:3000/web-timeentries`);
+    const res = await fetch(buildUrl(API_CONFIG.endpoints.timeEntries));
     const data = await res.json();
     setEntries(data);
   };
@@ -133,7 +130,7 @@ export default function TimeEntriesPanel() {
 
   const handleStatusChange = async (entryId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:3000/web-timeentries/${entryId}`, {
+      const res = await fetch(buildUrl(`${API_CONFIG.endpoints.timeEntries}/${entryId}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -205,7 +202,7 @@ export default function TimeEntriesPanel() {
     };
 
     try {
-      const res = await fetch(`http://localhost:3000/web-timeentries/${editEntry.id}`, {
+      const res = await fetch(buildUrl(`${API_CONFIG.endpoints.timeEntries}/${editEntry.id}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -244,6 +241,28 @@ export default function TimeEntriesPanel() {
     });
   };
 
+  // User expansion handlers
+  const toggleUserExpansion = (userId) => {
+    setExpandedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  // Day expansion handlers
+  const toggleDayExpansion = (userId, dayIndex) => {
+    const key = `${userId}-${dayIndex}`;
+    setExpandedDays(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const isDayExpanded = (userId, dayIndex) => {
+    return expandedDays[`${userId}-${dayIndex}`] || false;
+  };
+
   const saveAdd = async () => {
     const { clock_in_time, clock_out_time, project_id } = addData;
     if (!clock_in_time || !clock_out_time || !project_id) {
@@ -276,7 +295,7 @@ export default function TimeEntriesPanel() {
     };
     console.log("Payload:", payload); // <-- Add this line here
     try {
-      const res = await fetch("http://localhost:3000/web-timeentries", {
+      const res = await fetch(buildUrl(API_CONFIG.endpoints.timeEntries), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -457,6 +476,7 @@ export default function TimeEntriesPanel() {
         setDepartmentFilter("all");
         setGroupFilter("all");
         setGroupBy("none");
+        setApprovalFilter("all");
       }}
     >
       Clear All Filters
@@ -540,6 +560,13 @@ export default function TimeEntriesPanel() {
             <Card key={user.id} className="mb-6">
               <CardContent>
                 <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleUserExpansion(user.id)}
+                    className="w-6 h-6 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-sm font-bold"
+                    title={expandedUsers.includes(user.id) ? "Collapse user" : "Expand user"}
+                  >
+                    {expandedUsers.includes(user.id) ? "−" : "+"}
+                  </button>
                   {user.name}
                   <span className="ml-2 flex gap-1">
                     {weekDays.map((day, idx) => (
@@ -555,112 +582,113 @@ export default function TimeEntriesPanel() {
                     ))}
                   </span>
                 </h3>
-                <Accordion
-                  type="multiple"
-                  value={expandedUsers.includes(user.id)
-                    ? weekDays.map((_, idx) => `day-${user.id}-${idx}`)
-                    : []}
-                >
-                  {weekDays.map((day, idx) => {
-                    const dayEntries = user.entries.filter((e) =>
-                      dayjs(e.clock_in_time).isSame(day, "day")
-                    );
-                    if (dayEntries.length === 0) return null;
+                {expandedUsers.includes(user.id) && (
+                  <div className="space-y-2">
+                    {weekDays.map((day, idx) => {
+                      const dayEntries = user.entries.filter((e) =>
+                        dayjs(e.clock_in_time).isSame(day, "day")
+                      );
+                      if (dayEntries.length === 0) return null;
 
-                    const totalDuration = dayEntries.reduce(
-                      (acc, e) => acc.add(getDuration(e.clock_in_time, e.clock_out_time)),
-                      dayjs.duration(0)
-                    );
+                      const totalDuration = dayEntries.reduce(
+                        (acc, e) => acc.add(getDuration(e.clock_in_time, e.clock_out_time)),
+                        dayjs.duration(0)
+                      );
 
-                    return (
-                      <AccordionItem key={idx} value={`day-${user.id}-${idx}`}>
-                        <AccordionTrigger>
-                          <div className="flex justify-between w-full">
+                      const dayExpanded = isDayExpanded(user.id, idx);
+
+                      return (
+                        <div key={idx} className="border rounded-lg">
+                          <button
+                            onClick={() => toggleDayExpansion(user.id, idx)}
+                            className="w-full p-3 text-left hover:bg-gray-50 flex justify-between items-center"
+                          >
                             <span>
                               {day.format("ddd DD/MM/YYYY")} — {dayEntries.length} entries
                             </span>
                             <span className="text-sm text-gray-600">
                               Total: {formatDuration(totalDuration)}
                             </span>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <Table className="table-fixed w-full">
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-[50px]">Edit</TableHead>
-                                <TableHead className="w-[80px]">Clock In</TableHead>
-                                <TableHead className="w-[80px]">Clock Out</TableHead>
-                                <TableHead className="w-[90px]">Duration</TableHead>
-                                <TableHead className="w-[240px]">Project</TableHead>
-                                <TableHead className="w-[100px]">Status</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {dayEntries.map((entry, j) => (
-                                <TableRow key={j}>
-                                  <TableCell className="w-[50px]">
-                                    <button
-                                      onClick={() => openEditModal(entry)}
-                                      title="Edit"
-                                    >
-                                      ✏️
-                                    </button>
-                                  </TableCell>
-                                  <TableCell className="w-[80px]">
-                                    {dayjs
-                                      .utc(entry.clock_in_time)
-                                      .tz("Europe/Athens")
-                                      .format("HH:mm")}
-                                  </TableCell>
-                                  <TableCell className="w-[80px]">
-                                    {entry.clock_out_time
-                                      ? dayjs
-                                          .utc(entry.clock_out_time)
+                          </button>
+                          {dayExpanded && (
+                            <div className="p-3 pt-0 border-t bg-gray-50">
+                              <Table className="table-fixed w-full">
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-[50px]">Edit</TableHead>
+                                    <TableHead className="w-[80px]">Clock In</TableHead>
+                                    <TableHead className="w-[80px]">Clock Out</TableHead>
+                                    <TableHead className="w-[90px]">Duration</TableHead>
+                                    <TableHead className="w-[240px]">Project</TableHead>
+                                    <TableHead className="w-[100px]">Status</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {dayEntries.map((entry, j) => (
+                                    <TableRow key={j}>
+                                      <TableCell className="w-[50px]">
+                                        <button
+                                          onClick={() => openEditModal(entry)}
+                                          title="Edit"
+                                        >
+                                          ✏️
+                                        </button>
+                                      </TableCell>
+                                      <TableCell className="w-[80px]">
+                                        {dayjs
+                                          .utc(entry.clock_in_time)
                                           .tz("Europe/Athens")
-                                          .format("HH:mm")
-                                      : "—"}
-                                  </TableCell>
-                                  <TableCell className="w-[90px]">
-                                    {entry.clock_out_time
-                                      ? formatDuration(
-                                          getDuration(
-                                            dayjs.utc(entry.clock_in_time).tz("Europe/Athens"),
-                                            dayjs.utc(entry.clock_out_time).tz("Europe/Athens")
-                                          )
-                                        )
-                                      : "—"}
-                                  </TableCell>
-                                  <TableCell className="w-[240px]">
-                                    {entry.project_id} - {entry.project_name}
-                                  </TableCell>
-                                  <TableCell className="w-[100px]">
-                                    <button
-                                      onClick={() =>
-                                        handleStatusChange(
-                                          entry.id,
-                                          entry.status === "approved" ? "pending" : "approved"
-                                        )
-                                      }
-                                      className={`px-3 py-1 rounded text-sm font-semibold ${
-                                        entry.status === "approved"
-                                          ? "bg-blue-600 text-white"
-                                          : "bg-gray-300 text-gray-800"
-                                      }`}
-                                    >
-                                      {entry.status === "approved" ? "Approved" : "Pending"}
-                                    </button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-
-                        </AccordionContent>
-                      </AccordionItem>
-                    );
-                  })}
-                </Accordion>
+                                          .format("HH:mm")}
+                                      </TableCell>
+                                      <TableCell className="w-[80px]">
+                                        {entry.clock_out_time
+                                          ? dayjs
+                                              .utc(entry.clock_out_time)
+                                              .tz("Europe/Athens")
+                                              .format("HH:mm")
+                                          : "—"}
+                                      </TableCell>
+                                      <TableCell className="w-[90px]">
+                                        {entry.clock_out_time
+                                          ? formatDuration(
+                                              getDuration(
+                                                dayjs.utc(entry.clock_in_time).tz("Europe/Athens"),
+                                                dayjs.utc(entry.clock_out_time).tz("Europe/Athens")
+                                              )
+                                            )
+                                          : "—"}
+                                      </TableCell>
+                                      <TableCell className="w-[240px]">
+                                        {entry.project_id} - {entry.project_name}
+                                      </TableCell>
+                                      <TableCell className="w-[100px]">
+                                        <button
+                                          onClick={() =>
+                                            handleStatusChange(
+                                              entry.id,
+                                              entry.status === "approved" ? "pending" : "approved"
+                                            )
+                                          }
+                                          className={`px-3 py-1 rounded text-sm font-semibold ${
+                                            entry.status === "approved"
+                                              ? "bg-blue-600 text-white"
+                                              : "bg-gray-300 text-gray-800"
+                                          }`}
+                                        >
+                                          {entry.status === "approved" ? "Approved" : "Pending"}
+                                        </button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
               </CardContent>
             </Card>
@@ -757,7 +785,7 @@ export default function TimeEntriesPanel() {
                   onClick={async () => {
                     if (window.confirm("Are you sure you want to delete this entry?")) {
                       try {
-                        const res = await fetch(`http://localhost:3000/web-timeentries/${editEntry.id}`, {
+                        const res = await fetch(buildUrl(`${API_CONFIG.endpoints.timeEntries}/${editEntry.id}`), {
                           method: "DELETE",
                           headers: {
                             "X-User-Id": "admin",

@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import API_CONFIG, { buildUrl } from "../config/api";
+import axios from "axios";
 
 const MOCK_PAYROLL = [
   // Existing user
@@ -213,10 +216,45 @@ const WEEKDAYS = [
 
 
 export default function PayrollReportPanel() {
+  // State management
+  const [payrollData, setPayrollData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedWeek, setSelectedWeek] = useState("");
+  const [useMockData, setUseMockData] = useState(true); // Toggle for testing
+  
   const weekStartDay = "Πέμπτη";
 
+  // Function to fetch real payroll data
+  const fetchPayrollData = async (year, weekStart) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await axios.get(buildUrl(API_CONFIG.endpoints.payrollReport), {
+        params: {
+          year: year,
+          week_start: weekStart,
+          week_start_day: weekStartDay
+        }
+      });
+      
+      setPayrollData(response.data);
+    } catch (err) {
+      console.error("Error fetching payroll data:", err);
+      setError("Failed to load payroll data. Using mock data as fallback.");
+      setPayrollData(MOCK_PAYROLL); // Fallback to mock data
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use mock data initially, but allow real data fetching
+  const currentData = useMockData ? MOCK_PAYROLL : payrollData;
+
   // Collect unique years from time entries
-  const allDates = MOCK_PAYROLL.flatMap(user => user.days.map(d => new Date(d.date)));
+  const allDates = currentData.flatMap(user => user.days.map(d => new Date(d.date)));
   const uniqueYears = [...new Set(allDates.map(d => d.getFullYear()))];
   const sortedYears = uniqueYears.sort((a, b) => b - a);
 
@@ -240,47 +278,106 @@ export default function PayrollReportPanel() {
     const bDate = new Date(b.split(" - ")[0].split("/").reverse().join("-"));
     return bDate - aDate;
   });
+  // Initialize with first available week on component mount
+  useEffect(() => {
+    if (weekRanges.length > 0 && !selectedWeek) {
+      setSelectedWeek(weekRanges[0]);
+    }
+  }, [weekRanges, selectedWeek]);
+
   return (
     <Card className="max-w-6xl mx-auto my-8">
       <div className="flex flex-wrap justify-between items-start gap-4 px-6 pt-6">
-  <div>
-    <h2 className="text-xl font-semibold">Weekly Payroll Report</h2>
-  </div>
-  <div className="w-64">
-    <label className="text-sm mb-1 text-gray-500 block">Αρχική ημέρα εβδομάδας</label>
-<select disabled defaultValue={weekStartDay} className="w-full bg-gray-100 text-gray-600 border border-gray-300 rounded px-2 py-1 cursor-not-allowed">
-  <option>Δευτέρα</option>
-  <option>Τρίτη</option>
-  <option>Τετάρτη</option>
-  <option>Πέμπτη</option>
-  <option>Παρασκευή</option>
-  <option>Σάββατο</option>
-  <option>Κυριακή</option>
-</select>
-  </div>
-  <div className="w-48">
-    <label className="text-sm mb-1 text-gray-500 block">Έτος</label>
-    <select className="w-full bg-white border border-gray-300 rounded px-2 py-1">
-      {sortedYears.map((y) => (
-        <option key={y}>{y}</option>
-      ))}
-    </select>
-  </div>
-  <div className="w-64">
-    <label className="text-sm mb-1 text-gray-500 block">Εβδομάδα</label>
-    <select className="w-full bg-white border border-gray-300 rounded px-2 py-1">
-      {weekRanges.map((r, i) => (
-        <option key={i}>{r}</option>
-      ))}
-    </select>
-  </div>
-</div>
+        <div>
+          <h2 className="text-xl font-semibold">Weekly Payroll Report</h2>
+          {error && (
+            <div className="text-red-600 text-sm mt-1">{error}</div>
+          )}
+        </div>
+        
+        {/* Data Source Toggle */}
+        <div className="w-48">
+          <label className="text-sm mb-1 text-gray-500 block">Data Source</label>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={useMockData ? "default" : "outline"}
+              onClick={() => setUseMockData(true)}
+            >
+              Mock Data
+            </Button>
+            <Button
+              size="sm"
+              variant={!useMockData ? "default" : "outline"}
+              onClick={() => {
+                setUseMockData(false);
+                if (selectedWeek) {
+                  fetchPayrollData(selectedYear, selectedWeek);
+                }
+              }}
+            >
+              Real Data
+            </Button>
+          </div>
+        </div>
 
-<CardHeader>
-        <h2 className="text-xl font-semibold">Weekly Payroll Report</h2>
-      </CardHeader>
-      <CardContent>
-        {MOCK_PAYROLL.map((user) => {
+        <div className="w-64">
+          <label className="text-sm mb-1 text-gray-500 block">Αρχική ημέρα εβδομάδας</label>
+          <select disabled defaultValue={weekStartDay} className="w-full bg-gray-100 text-gray-600 border border-gray-300 rounded px-2 py-1 cursor-not-allowed">
+            <option>Δευτέρα</option>
+            <option>Τρίτη</option>
+            <option>Τετάρτη</option>
+            <option>Πέμπτη</option>
+            <option>Παρασκευή</option>
+            <option>Σάββατο</option>
+            <option>Κυριακή</option>
+          </select>
+        </div>
+        
+        <div className="w-48">
+          <label className="text-sm mb-1 text-gray-500 block">Έτος</label>
+          <select 
+            className="w-full bg-white border border-gray-300 rounded px-2 py-1"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          >
+            {sortedYears.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="w-64">
+          <label className="text-sm mb-1 text-gray-500 block">Εβδομάδα</label>
+          <select 
+            className="w-full bg-white border border-gray-300 rounded px-2 py-1"
+            value={selectedWeek}
+            onChange={(e) => {
+              setSelectedWeek(e.target.value);
+              if (!useMockData) {
+                fetchPayrollData(selectedYear, e.target.value);
+              }
+            }}
+          >
+            {weekRanges.map((r, i) => (
+              <option key={i} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+
+              <CardContent>
+        {loading ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="text-lg text-gray-600">Loading payroll data...</div>
+          </div>
+        ) : currentData.length === 0 ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="text-lg text-gray-600">No payroll data available for the selected period.</div>
+          </div>
+        ) : (
+          currentData.map((user) => {
           const dayMap = Object.fromEntries(user.days.map(d => [d.day, d]));
 
           const totalWeek = WEEKDAYS.reduce((sum, day) => {
@@ -358,7 +455,8 @@ export default function PayrollReportPanel() {
               </Table>
             </div>
           );
-        })}
+        })
+        )}
       </CardContent>
     </Card>
   );

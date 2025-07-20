@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 export default function WhoIsWorking() {
   const [entries, setEntries] = useState([]);
@@ -25,7 +26,7 @@ export default function WhoIsWorking() {
   const [sortOrder, setSortOrder] = useState("asc");
 
   const fetchData = () => {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/whoisworking`)
+    fetch(buildUrl(API_CONFIG.endpoints.whoisworking))
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

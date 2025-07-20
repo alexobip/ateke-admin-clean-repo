@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { PencilIcon } from "lucide-react";
 import Modal from "@/components/ui/modal";
 import { Switch } from "@/components/ui/switch";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 export default function ProjectsPanel() {
   const [projects, setProjects] = useState([]);
@@ -43,7 +44,7 @@ export default function ProjectsPanel() {
   const [editingProject, setEditingProject] = useState(null);
 
   const fetchProjects = () => {
-    fetch("https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects")
+    fetch(buildUrl(API_CONFIG.endpoints.projects, true))
       .then((res) => res.json())
       .then((data) => {
         setProjects(data);
@@ -101,7 +102,7 @@ export default function ProjectsPanel() {
 
   const handleToggleActive = async (id) => {
     try {
-      const res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${id}/toggle`, { method: "PATCH" });
+      const res = await fetch(buildUrl(`${API_CONFIG.endpoints.projects}/${id}/toggle`, true), { method: "PATCH" });
       if (!res.ok) throw new Error("Toggle failed");
       fetchProjects();
       alert("Project status toggled successfully.");
@@ -158,13 +159,13 @@ export default function ProjectsPanel() {
       try {
         let res;
         if (project) {
-          res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects/${id}`, {
+          res = await fetch(buildUrl(`${API_CONFIG.endpoints.projects}/${id}`, true), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
         } else {
-          res = await fetch(`https://timesheets-api-clean-dyfga7dfe2h8fkh6.westeurope-01.azurewebsites.net/webProjects`, {
+          res = await fetch(buildUrl(API_CONFIG.endpoints.projects, true), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(fullPayload),

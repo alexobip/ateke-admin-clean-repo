@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import API_CONFIG, { buildUrl } from "../config/api";
 
 export default function UserFormModal({ open, onOpenChange, onSubmit, initialData = null }) {
   const isEdit = Boolean(initialData);
@@ -32,8 +33,8 @@ export default function UserFormModal({ open, onOpenChange, onSubmit, initialDat
   }, [initialData]);
 
   useEffect(() => {
-    axios.get("/departments").then((res) => setDepartments(res.data));
-    axios.get("/groups").then((res) => setGroups(res.data));
+    axios.get(buildUrl(API_CONFIG.endpoints.departments)).then((res) => setDepartments(res.data));
+    axios.get(buildUrl(API_CONFIG.endpoints.groups)).then((res) => setGroups(res.data));
   }, []);
 
   const handleChange = (key, value) => {
